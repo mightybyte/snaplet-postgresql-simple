@@ -7,10 +7,29 @@ module Snap.Snaplet.PostgresqlSimple
   , pgsInit
   , query
   , query_
+  , fold
+  , foldWithOptions
+  , fold_
+  , foldWithOptions_
+  , forEach
+  , forEach_
+  , execute
+  , execute_
+  , executeMany
+  , begin
+  , beginLevel
+  , beginMode
+  , rollback
+  , commit
+  , withTransaction
+  , withTransactionLevel
+  , withTransactionMode
+  , formatMany
+  , formatQuery
 
   -- Re-exported from postgresql-simple
   , P.ConnectInfo(..)
-  , P.Query(..)
+  , P.Query
   , P.In(..)
   , P.Binary(..)
   , P.Only(..)
@@ -18,22 +37,27 @@ module Snap.Snaplet.PostgresqlSimple
   , P.FormatError(..)
   , P.QueryError(..)
   , P.ResultError(..)
+  , P.TransactionMode(..)
+  , P.IsolationLevel(..)
+  , P.ReadWriteMode(..)
   , QueryParams(..)
   , QueryResults(..)
 
   , P.defaultConnectInfo
+  , P.defaultTransactionMode
+  , P.defaultIsolationLevel
+  , P.defaultReadWriteMode
 
   ) where
 
 import            Prelude hiding (catch)
 
-import            Control.Exception (SomeException)
 import            Control.Monad.CatchIO
 import            Control.Monad.IO.Class
 import            Control.Monad.State
+import            Data.ByteString (ByteString)
 import            Data.Int
 import            Data.Pool
-import            Data.Text (Text)
 import            Database.PostgreSQL.Simple.QueryParams
 import            Database.PostgreSQL.Simple.QueryResults
 import qualified  Database.PostgreSQL.Simple as P
@@ -174,5 +198,57 @@ execute_ template = withPG (\c -> P.execute_ c template)
 executeMany :: (MonadState Postgres m, QueryParams q, MonadCatchIO m)
         => P.Query -> [q] -> m Int64
 executeMany template qs = withPG (\c -> P.executeMany c template qs)
+
+
+begin :: (MonadState Postgres m, MonadCatchIO m) => m ()
+begin = withPG P.begin
+
+
+beginLevel :: (MonadState Postgres m, MonadCatchIO m)
+           => P.IsolationLevel -> m ()
+beginLevel lvl = withPG (P.beginLevel lvl)
+
+
+beginMode :: (MonadState Postgres m, MonadCatchIO m)
+          => P.TransactionMode -> m ()
+beginMode mode = withPG (P.beginMode mode)
+
+
+rollback :: (MonadState Postgres m, MonadCatchIO m) => m ()
+rollback = withPG P.rollback
+
+
+commit :: (MonadState Postgres m, MonadCatchIO m) => m ()
+commit = withPG P.commit
+
+
+withTransaction :: (MonadState Postgres m, MonadCatchIO m)
+                => m a -> m a
+withTransaction = withTransactionMode P.defaultTransactionMode
+
+
+withTransactionLevel :: (MonadState Postgres m, MonadCatchIO m)
+                     => P.IsolationLevel -> m a -> m a
+withTransactionLevel lvl
+    = withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
+
+
+withTransactionMode :: (MonadState Postgres m, MonadCatchIO m)
+                    => P.TransactionMode -> m a -> m a
+withTransactionMode mode act = do
+    beginMode mode
+    r <- act `onException` rollback
+    commit
+    return r
+
+
+formatMany :: (QueryParams q, MonadState Postgres m, MonadCatchIO m)
+           => P.Query -> [q] -> m ByteString
+formatMany q qs = withPG (\c -> P.formatMany c q qs)
+
+
+formatQuery :: (QueryParams q, MonadState Postgres m, MonadCatchIO m)
+            => P.Query -> q -> m ByteString
+formatQuery q qs = withPG (\c -> P.formatQuery c q qs)
 
 
