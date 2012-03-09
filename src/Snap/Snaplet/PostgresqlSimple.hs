@@ -100,7 +100,10 @@ withPG f = do
   where
     getResource = do
         pool <- gets pgPool
-        withResource pool (liftIO . f)
+        withResource pool wrapper
+    wrapper c = do
+        modify (\p -> p { pgConnection = Just c })
+        liftIO $ f c
 
 
 ------------------------------------------------------------------------------
