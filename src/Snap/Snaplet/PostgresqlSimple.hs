@@ -67,7 +67,8 @@ import            Snap.Snaplet
 ------------------------------------------------------------------------------
 -- | 
 data Postgres = Postgres
-    { pgConnection :: Pool P.Connection
+    { pgPool :: Pool P.Connection
+    , pgConnection :: Maybe P.Connection
     }
 
 
@@ -83,7 +84,7 @@ class (MonadCatchIO m, MonadState Postgres m) => HasPostgres m where
 pgsInit :: P.ConnectInfo -> SnapletInit b Postgres
 pgsInit ci = makeSnaplet "postgresql-simple" description Nothing $ do
     pool <- liftIO $ createPool (P.connect ci) P.close 1 5 20
-    return $ Postgres pool
+    return $ Postgres pool Nothing
   where
     description = "PostgreSQL abstraction"
 
@@ -94,8 +95,12 @@ pgsInit ci = makeSnaplet "postgresql-simple" description Nothing $ do
 withPG :: (MonadState Postgres m, MonadCatchIO m)
        => (P.Connection -> IO b) -> m b
 withPG f = do
-    pool <- gets pgConnection
-    withResource pool (liftIO . f)
+    mConn <- gets pgConnection
+    maybe getResource (liftIO . f) mConn
+  where
+    getResource = do
+        pool <- gets pgPool
+        withResource pool (liftIO . f)
 
 
 ------------------------------------------------------------------------------
