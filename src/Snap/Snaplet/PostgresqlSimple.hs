@@ -3,6 +3,7 @@
 
 module Snap.Snaplet.PostgresqlSimple
   ( Postgres
+  , pgPool
   , HasPostgres(..)
   , pgsInit
   , query
@@ -50,18 +51,18 @@ module Snap.Snaplet.PostgresqlSimple
 
   ) where
 
-import            Prelude hiding (catch)
+import           Prelude hiding (catch)
 
-import            Control.Monad.CatchIO
-import            Control.Monad.IO.Class
-import            Control.Monad.State
-import            Data.ByteString (ByteString)
-import            Data.Int
-import            Data.Pool
-import            Database.PostgreSQL.Simple.QueryParams
-import            Database.PostgreSQL.Simple.QueryResults
-import qualified  Database.PostgreSQL.Simple as P
-import            Snap.Snaplet
+import           Control.Monad.CatchIO
+import           Control.Monad.IO.Class
+import           Control.Monad.State
+import           Data.ByteString (ByteString)
+import           Data.Int
+import           Data.Pool
+import           Database.PostgreSQL.Simple.QueryParams
+import           Database.PostgreSQL.Simple.QueryResults
+import qualified Database.PostgreSQL.Simple as P
+import           Snap.Snaplet
 
 
 ------------------------------------------------------------------------------
