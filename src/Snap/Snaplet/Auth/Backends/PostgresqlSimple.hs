@@ -147,6 +147,10 @@ instance QueryResults AuthUser where
 querySingle pool q ps = withResource pool $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
+authExecute pool q ps = do
+    withResource pool $ \conn -> P.execute conn q ps
+    return ()
+
 ------------------------------------------------------------------------------
 -- | 
 instance IAuthBackend PostgresAuthManager where
@@ -171,8 +175,7 @@ instance IAuthBackend PostgresAuthManager where
                     (pamAuthTable, token)
 
     --destroy :: PostgresAuthManager -> AuthUser -> IO ()
-    destroy PostgresAuthManager{..} AuthUser{..} = do
-        withResource pamConnPool $ \conn -> P.execute conn
-          "delete from ? where userLogin = ?" (pamAuthTable, userLogin)
-        return ()
+    destroy PostgresAuthManager{..} AuthUser{..} =
+        authExecute pamConnPool "delete from ? where userLogin = ?"
+                    (pamAuthTable, userLogin)
 
