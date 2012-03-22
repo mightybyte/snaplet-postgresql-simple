@@ -50,17 +50,16 @@ settingsFromConfig = do
 
 ------------------------------------------------------------------------------
 -- | 
-initPostgresAuth
-  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
-  -> Lens b (Snaplet Postgres)  -- ^ Lens to the postgres snaplet
-  -> SnapletInit b (AuthManager b)
+--initPostgresAuth
+--  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
+--  -> Snaplet Postgres  -- ^ The postgres snaplet
+--  -> SnapletInit b (AuthManager b)
 initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
     authSettings <- settingsFromConfig
     key <- liftIO $ getKey (asSiteKey authSettings)
-    pool <- withTop db $ gets pgPool
-    let manager = PostgresAuthManager authTable pool
+    let manager = PostgresAuthManager authTable $ pgPool $ getL snapletValue db
     liftIO $ createTableIfMissing manager
     return $ AuthManager
       { backend = manager
