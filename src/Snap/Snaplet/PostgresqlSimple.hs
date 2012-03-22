@@ -53,11 +53,14 @@ module Snap.Snaplet.PostgresqlSimple
 
 import           Prelude hiding (catch)
 
+import           Control.Applicative
 import           Control.Monad.CatchIO
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Data.ByteString (ByteString)
+import qualified Data.Configurator as C
 import           Data.Int
+import           Data.Maybe
 import           Data.Pool
 import           Database.PostgreSQL.Simple.QueryParams
 import           Database.PostgreSQL.Simple.QueryResults
@@ -82,8 +85,17 @@ class (MonadCatchIO m, MonadState Postgres m) => HasPostgres m where
 
 ------------------------------------------------------------------------------
 -- | Initialise the snaplet
-pgsInit :: P.ConnectInfo -> SnapletInit b Postgres
-pgsInit ci = makeSnaplet "postgresql-simple" description Nothing $ do
+pgsInit :: SnapletInit b Postgres
+pgsInit = makeSnaplet "postgresql-simple" description Nothing $ do
+    config <- getSnapletUserConfig
+    host <- liftIO $ C.lookup config "host"
+    port <- liftIO $ C.lookup config "port"
+    user <- liftIO $ C.lookup config "user"
+    pass <- liftIO $ C.lookup config "pass"
+    db <- liftIO $ C.lookup config "db"
+    let mci = P.ConnectInfo <$> host <*> port <*> user <*> pass <*> db
+        ci = fromMaybe (error "Must supply database server information in config file") mci
+
     pool <- liftIO $ createPool (P.connect ci) P.close 1 5 20
     return $ Postgres pool Nothing
   where

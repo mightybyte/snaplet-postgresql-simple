@@ -13,6 +13,7 @@ import qualified Data.HashMap.Lazy as HM
 import           Data.Maybe
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
+import qualified Database.PostgreSQL.Simple.Param as P
 import           Database.PostgreSQL.Simple.Result
 import           Database.PostgreSQL.Simple.QueryResults
 import           Database.PostgreSQL.Simple.Types
@@ -49,10 +50,10 @@ settingsFromConfig = do
 
 ------------------------------------------------------------------------------
 -- | 
---initPostgresAuth
---  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
---  -> Lens b (Snaplet Postgres)  -- ^ Lens to the postgres snaplet
---  -> SnapletInit b (AuthManager b)
+initPostgresAuth
+  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
+  -> Lens b (Snaplet Postgres)  -- ^ Lens to the postgres snaplet
+  -> SnapletInit b (AuthManager b)
 initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
@@ -153,13 +154,38 @@ authExecute pool q ps = do
     withResource pool $ \conn -> P.execute conn q ps
     return ()
 
+instance P.Param Password where
+    render (ClearText bs) = P.render bs
+    render (Encrypted bs) = P.render bs
+
 ------------------------------------------------------------------------------
 -- | 
 instance IAuthBackend PostgresAuthManager where
     --save :: PostgresAuthManager -> AuthUser -> IO AuthUser
-    save PostgresAuthManager{..} AuthUser{..} = do
+    save PostgresAuthManager{..} u@AuthUser{..} = do
         let query = "insert into ?  (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-        authExecute pamConnPool query (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt)
+        withResource pamConnPool $ \conn -> do
+            P.begin conn
+            P.execute conn query
+              [P.render $ fmap unUid userId
+              ,P.render userLogin
+              ,P.render userPassword
+              ,P.render userActivatedAt
+              ,P.render userSuspendedAt
+              ,P.render userRememberToken
+              ,P.render userLoginCount
+              ,P.render userFailedLoginCount
+              ,P.render userLockedOutUntil
+              ,P.render userCurrentLoginAt
+              ,P.render userLastLoginAt
+              ,P.render userCurrentLoginIp
+              ,P.render userLastLoginIp
+              ,P.render userCreatedAt
+              ,P.render userUpdatedAt]
+            res <- P.query conn "select * from ? where userLogin = ?"
+                    (pamAuthTable, userLogin)
+            P.commit conn
+            return $ fromMaybe u $ listToMaybe res
 
     --lookupByUserId :: PostgresAuthManager -> UserId -> IO (Maybe AuthUser)
     lookupByUserId PostgresAuthManager{..} uid =
