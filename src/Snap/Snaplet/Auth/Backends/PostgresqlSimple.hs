@@ -79,7 +79,8 @@ createTableIfMissing PostgresAuthManager{..} = do
       (Only pamAuthTable)
     return ()
   where
-    q = Query $ "CREATE TABLE ? (" `B.append` B.intercalate ","
+    q = Query $ "CREATE TABLE IF NOT EXISTS ? (" `B.append`
+      B.intercalate ","
       ["userId text PRIMARY KEY"
       ,"userLogin text NOT NULL"
       ,"userPassword text"
@@ -95,7 +96,7 @@ createTableIfMissing PostgresAuthManager{..} = do
       ,"userLastLoginIp text"
       ,"userCreatedAt date"
       ,"userUpdatedAt date"
-      ,"userRoles text"
+      ,"userRoles text)"
       ]
 
 instance Result UserId where
@@ -144,6 +145,7 @@ instance QueryResults AuthUser where
         !_userRoles            = Right []
         !_userMeta             = Right HM.empty
 
+
 querySingle pool q ps = withResource pool $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
@@ -156,8 +158,8 @@ authExecute pool q ps = do
 instance IAuthBackend PostgresAuthManager where
     --save :: PostgresAuthManager -> AuthUser -> IO AuthUser
     save PostgresAuthManager{..} AuthUser{..} = do
-        let query = "insert into ? "
-        return undefined
+        let query = "insert into ?  (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        authExecute pamConnPool query (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt)
 
     --lookupByUserId :: PostgresAuthManager -> UserId -> IO (Maybe AuthUser)
     lookupByUserId PostgresAuthManager{..} uid =
