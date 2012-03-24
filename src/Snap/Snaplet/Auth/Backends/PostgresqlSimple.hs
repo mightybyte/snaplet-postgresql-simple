@@ -6,7 +6,6 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple where
 
 ------------------------------------------------------------------------------
 import           Control.Arrow
---import           Database.PostgreSQL.Simple
 import qualified Data.ByteString as B
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
@@ -18,11 +17,12 @@ import           Database.PostgreSQL.Simple.Result
 import           Database.PostgreSQL.Simple.QueryResults
 import           Database.PostgreSQL.Simple.Types
 import           Snap
-import           Snap.Snaplet
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
+import           Snap.Snaplet.Session.Common
 import           Web.ClientSession
+
 
 data PostgresAuthManager = PostgresAuthManager
     { pamAuthTable :: String
@@ -33,6 +33,7 @@ data PostgresAuthManager = PostgresAuthManager
 ------------------------------------------------------------------------------
 -- | Simple function to get auth settings from a config file.  All options
 -- are optional and default to what's in defAuthSettings if not supplied.
+settingsFromConfig :: Initializer b (AuthManager b) AuthSettings
 settingsFromConfig = do
     config <- getSnapletUserConfig
     minPasswordLen <- liftIO $ C.lookup config "minPasswordLen"
@@ -50,17 +51,19 @@ settingsFromConfig = do
 
 ------------------------------------------------------------------------------
 -- | 
---initPostgresAuth
---  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
---  -> Snaplet Postgres  -- ^ The postgres snaplet
---  -> SnapletInit b (AuthManager b)
+initPostgresAuth
+  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
+  -> Snaplet Postgres  -- ^ The postgres snaplet
+  -> SnapletInit b (AuthManager b)
 initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
     authSettings <- settingsFromConfig
     key <- liftIO $ getKey (asSiteKey authSettings)
-    let manager = PostgresAuthManager authTable $ pgPool $ getL snapletValue db
+    let manager = PostgresAuthManager authTable $
+                                      pgPool $ getL snapletValue db
     liftIO $ createTableIfMissing manager
+    rng <- liftIO mkRNG
     return $ AuthManager
       { backend = manager
       , session = sess
@@ -69,10 +72,15 @@ initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
       , rememberCookieName = asRememberCookieName authSettings
       , rememberPeriod = asRememberPeriod authSettings
       , siteKey = key
-      , lockout = asLockout authSettings }
+      , lockout = asLockout authSettings
+      , randomNumberGenerator = rng
+      }
   where
     desc = "A PostgreSQL backend for user authentication"
 
+
+------------------------------------------------------------------------------
+-- | Create the user table if it doesn't exist.
 createTableIfMissing :: PostgresAuthManager -> IO ()
 createTableIfMissing PostgresAuthManager{..} = do
     withResource pamConnPool $ \conn -> P.execute conn q
@@ -106,8 +114,8 @@ instance Result Password where
     convert f v = Encrypted <$> convert f v
 
 instance QueryResults AuthUser where
-    convertResults [fa,fb,fc,fd,fe,ff,fg,fh,fi,fj,fk,fl,fm,fn,fo,fp,fq]
-                   [va,vb,vc,vd,ve,vf,vg,vh,vi,vj,vk,vl,vm,vn,vo,vp,vq] =
+    convertResults (fa:fb:fc:fd:fe:ff:fg:fh:fi:fj:fk:fl:fm:fn:fo:_)
+                   (va:vb:vc:vd:ve:vf:vg:vh:vi:vj:vk:vl:vm:vn:vo:_) =
         AuthUser
         <$> _userId
         <*> _userLogin
@@ -144,11 +152,16 @@ instance QueryResults AuthUser where
         !_userUpdatedAt        = convert fo vo
         !_userRoles            = Right []
         !_userMeta             = Right HM.empty
+    convertResults fs vs = convertError fs vs 15
 
 
+querySingle :: (QueryParams q, QueryResults a)
+            => Pool P.Connection -> Query -> q -> IO (Maybe a)
 querySingle pool q ps = withResource pool $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
+authExecute :: QueryParams q
+            => Pool P.Connection -> Query -> q -> IO ()
 authExecute pool q ps = do
     withResource pool $ \conn -> P.execute conn q ps
     return ()
@@ -162,10 +175,10 @@ instance P.Param Password where
 instance IAuthBackend PostgresAuthManager where
     --save :: PostgresAuthManager -> AuthUser -> IO AuthUser
     save PostgresAuthManager{..} u@AuthUser{..} = do
-        let query = "insert into ?  (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+        let q = "insert into ?  (userId,userLogin,userPassword,userActivatedAt,userSuspendedAt,userRememberToken,userLoginCount,userFailedLoginCount,userLockedOutUntil,userCurrentLoginAt,userLastLoginAt,userCurrentLoginIp,userLastLoginIp,userCreatedAt,userUpdatedAt) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         withResource pamConnPool $ \conn -> do
             P.begin conn
-            P.execute conn query
+            P.execute conn q
               [P.render $ fmap unUid userId
               ,P.render userLogin
               ,P.render userPassword

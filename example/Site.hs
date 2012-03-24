@@ -51,7 +51,7 @@ app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     d <- nestSnaplet "db" db $ pgsInit
     a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
     addRoutes routes
-    return $ App d a
+    return $ App s d a
 
 
 main :: IO ()
