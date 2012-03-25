@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE ExistentialQuantification   #-}
 
 module Main where
 
@@ -28,10 +27,10 @@ import           Text.XmlHtml hiding (render)
 
 
 ------------------------------------------------------------------------------
-data App = forall b. App
+data App = App
     { _sess :: Snaplet SessionManager
     , _db :: Snaplet Postgres
-    , _auth :: Snaplet (AuthManager b)
+    , _auth :: Snaplet (AuthManager App)
     }
 
 makeLens ''App

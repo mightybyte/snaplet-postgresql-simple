@@ -57,9 +57,11 @@ import           Control.Applicative
 import           Control.Monad.CatchIO
 import           Control.Monad.IO.Class
 import           Control.Monad.State
+import           Control.Monad.Trans.Writer
 import           Data.ByteString (ByteString)
 import qualified Data.Configurator as C
 import           Data.Int
+import           Data.List
 import           Data.Maybe
 import           Data.Pool
 import           Database.PostgreSQL.Simple.QueryParams
@@ -83,18 +85,28 @@ class (MonadCatchIO m, MonadState Postgres m) => HasPostgres m where
     getPostgresState :: m Postgres
 
 
+--logErr :: Monad m => String -> Maybe a -> m (Either String a)
+logErr :: MonadIO m
+       => t -> IO (Maybe a) -> WriterT [t] m (Maybe a)
+logErr err m = do
+    res <- liftIO m
+    when (isNothing res) (tell [err])
+    return res
+
 ------------------------------------------------------------------------------
 -- | Initialise the snaplet
 pgsInit :: SnapletInit b Postgres
 pgsInit = makeSnaplet "postgresql-simple" description Nothing $ do
     config <- getSnapletUserConfig
-    host <- liftIO $ C.lookup config "host"
-    port <- liftIO $ C.lookup config "port"
-    user <- liftIO $ C.lookup config "user"
-    pass <- liftIO $ C.lookup config "pass"
-    db <- liftIO $ C.lookup config "db"
-    let mci = P.ConnectInfo <$> host <*> port <*> user <*> pass <*> db
-        ci = fromMaybe (error "Must supply database server information in config file") mci
+    (mci,errs) <- runWriterT $ do
+        host <- logErr "Must specify postgres host" $ C.lookup config "host"
+        port <- logErr "Must specify postgres port" $ C.lookup config "port"
+        user <- logErr "Must specify postgres user" $ C.lookup config "user"
+        pwd <- logErr "Must specify postgres pass" $ C.lookup config "pass"
+        db <- logErr "Must specify postgres db" $ C.lookup config "db"
+        liftIO $ print [show host, show port, show user, show pwd, show db]
+        return $ P.ConnectInfo <$> host <*> port <*> user <*> pwd <*> db
+    let ci = fromMaybe (error $ intercalate "\n" errs) mci
 
     pool <- liftIO $ createPool (P.connect ci) P.close 1 5 20
     return $ Postgres pool Nothing
