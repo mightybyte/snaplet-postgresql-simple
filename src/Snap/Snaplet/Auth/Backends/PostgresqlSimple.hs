@@ -9,6 +9,8 @@ import           Control.Arrow
 import qualified Data.ByteString as B
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import           Data.Maybe
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
@@ -83,28 +85,29 @@ initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
 -- | Create the user table if it doesn't exist.
 createTableIfMissing :: PostgresAuthManager -> IO ()
 createTableIfMissing PostgresAuthManager{..} = do
-    withResource pamConnPool $ \conn -> P.execute conn q
-      (Only pamAuthTable)
+    liftIO $ print q
+    withResource pamConnPool $ \conn -> P.execute_ conn (Query q)
     return ()
   where
-    q = Query $ "CREATE TABLE IF NOT EXISTS ? (" `B.append`
-      B.intercalate ","
-      ["userId text PRIMARY KEY"
-      ,"userLogin text NOT NULL"
-      ,"userPassword text"
-      ,"userActivatedAt date"
-      ,"userSuspendedAt date"
-      ,"userRememberToken text"
-      ,"userLoginCount integer NOT NULL"
-      ,"userFailedLoginCount integer NOT NULL"
-      ,"userLockedOutUntil date"
-      ,"userCurrentLoginAt date"
-      ,"userLastLoginAt date"
-      ,"userCurrentLoginIp text"
-      ,"userLastLoginIp text"
-      ,"userCreatedAt date"
-      ,"userUpdatedAt date"
-      ,"userRoles text)"
+    q = T.encodeUtf8 $ "CREATE TABLE " `T.append`
+                       (T.pack pamAuthTable) `T.append`
+                       " (" `T.append`
+      T.intercalate ","
+      ["user_id SERIAL PRIMARY KEY"
+      ,"user_login text NOT NULL"
+      ,"user_password text"
+      ,"user_activated_at date"
+      ,"user_suspended_at date"
+      ,"user_remember_token text"
+      ,"user_login_count integer NOT NULL"
+      ,"user_failed_login_count integer NOT NULL"
+      ,"user_locked_out_until date"
+      ,"user_current_login_at date"
+      ,"user_last_login_at date"
+      ,"user_current_login_ip text"
+      ,"user_last_login_ip text"
+      ,"user_created_at date"
+      ,"user_updated_at date)"
       ]
 
 instance Result UserId where
