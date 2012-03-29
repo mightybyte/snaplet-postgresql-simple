@@ -25,6 +25,9 @@ Then in your initializer you'll have something like this:
 > d <- nestSnaplet "db" db pgsInit
 > a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
 
+If you have not already created the database table for users, it will
+automatically be created for you the first time you run your application.
+
 -}
 
 module Snap.Snaplet.Auth.Backends.PostgresqlSimple
@@ -129,22 +132,6 @@ createTableIfMissing PostgresAuthManager{..} = do
                        tblName pamTable `T.append`
                        " (" `T.append`
           T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
---      ["uid SERIAL PRIMARY KEY"
---      ,"login text UNIQUE NOT NULL"
---      ,"password text"
---      ,"activated_at timestamp"
---      ,"suspended_at timestamp"
---      ,"remember_token text"
---      ,"login_count integer NOT NULL"
---      ,"failed_login_count integer NOT NULL"
---      ,"locked_out_until timestamp"
---      ,"current_login_at timestamp"
---      ,"last_login_at timestamp"
---      ,"current_login_ip text"
---      ,"last_login_ip text"
---      ,"created_at timestamp"
---      ,"updated_at timestamp)"
---      ]
 
 buildUid :: Int -> UserId
 buildUid = UserId . T.pack . show
@@ -285,17 +272,26 @@ colDef =
 saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
 saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
   where
-    insertQuery =  ("INSERT INTO " `T.append` tblName at `T.append`
-                    " (" `T.append` T.intercalate "," cols `T.append`
-                    ") VALUES (" `T.append` T.intercalate "," vals
-                   `T.append` ")", params)
+    insertQuery =  (T.concat [ "INSERT INTO "
+                             , tblName at
+                             , " ("
+                             , T.intercalate "," cols
+                             , ") VALUES ("
+                             , T.intercalate "," vals
+                             , ")"
+                             ]
+                   , params)
     qval f  = fst (f at) `T.append` " = ?"
-    updateQuery uid =  ("UPDATE " `T.append` tblName at `T.append`
-                        " SET " `T.append`
-                       T.intercalate "," (map (qval . fst) colDef)
-                       `T.append` " WHERE " `T.append` fst (colId at)
-                       `T.append` " = ?"
-                       , params ++ [P.render $ unUid uid])
+    updateQuery uid =
+        (T.concat [ "UPDATE "
+                  , tblName at
+                  , " SET "
+                  , T.intercalate "," (map (qval . fst) colDef)
+                  , " WHERE "
+                  , fst (colId at)
+                  , " = ?"
+                  ]
+        , params ++ [P.render $ unUid uid])
     cols = map (fst . ($at) . fst) colDef
     vals = map (const "?") cols
     params = map (($u) . snd) colDef
@@ -310,33 +306,54 @@ instance IAuthBackend PostgresAuthManager where
         withResource pamConnPool $ \conn -> do
             P.begin conn
             P.execute conn q params
-            let q2 = Query $ T.encodeUtf8 $
-                     "select * from " `T.append` tblName pamTable `T.append`
-                     " where login = ?"
+            let q2 = Query $ T.encodeUtf8 $ T.concat
+                     [ "select * from "
+                     , tblName pamTable
+                     , " where "
+                     , fst (colLogin pamTable)
+                     , " = ?"
+                     ]
             res <- P.query conn q2 [userLogin]
             P.commit conn
             return $ fromMaybe u $ listToMaybe res
 
     lookupByUserId PostgresAuthManager{..} uid = do
-        let q = Query $ T.encodeUtf8 $
-                "select * from " `T.append` tblName pamTable `T.append`
-                " where uid = ?"
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "select * from "
+                , tblName pamTable
+                , " where "
+                , fst (colId pamTable)
+                , " = ?"
+                ]
         querySingle pamConnPool q [unUid uid]
 
     lookupByLogin PostgresAuthManager{..} login = do
-        let q = Query $ T.encodeUtf8 $
-                "select * from " `T.append` tblName pamTable `T.append`
-                " where login = ?"
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "select * from "
+                , tblName pamTable
+                , " where "
+                , fst (colLogin pamTable)
+                , " = ?"
+                ]
         querySingle pamConnPool q [login]
 
     lookupByRememberToken PostgresAuthManager{..} token = do
-        let q = Query $ T.encodeUtf8 $
-                "select * from " `T.append` tblName pamTable `T.append`
-                " where remember_token = ?"
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "select * from "
+                , tblName pamTable
+                , " where "
+                , fst (colRememberToken pamTable)
+                , " = ?"
+                ]
         querySingle pamConnPool q [token]
 
     destroy PostgresAuthManager{..} AuthUser{..} = do
-        let q = Query $ T.encodeUtf8 $
-                "delete from " `T.append` tblName pamTable `T.append` " where login = ?"
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "delete from "
+                , tblName pamTable
+                , " where "
+                , fst (colLogin pamTable)
+                , " = ?"
+                ]
         authExecute pamConnPool q [userLogin]
 
