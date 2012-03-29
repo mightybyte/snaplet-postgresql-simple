@@ -104,7 +104,6 @@ pgsInit = makeSnaplet "postgresql-simple" description Nothing $ do
         user <- logErr "Must specify postgres user" $ C.lookup config "user"
         pwd <- logErr "Must specify postgres pass" $ C.lookup config "pass"
         db <- logErr "Must specify postgres db" $ C.lookup config "db"
-        liftIO $ print [show host, show port, show user, show pwd, show db]
         return $ P.ConnectInfo <$> host <*> port <*> user <*> pwd <*> db
     let ci = fromMaybe (error $ intercalate "\n" errs) mci
 
