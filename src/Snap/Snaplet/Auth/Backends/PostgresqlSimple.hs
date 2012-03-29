@@ -2,17 +2,41 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
+{-|
+
+This module allows you to use the auth snaplet with your user database stored
+in a PostgreSQL database.  When you run your application with this snaplet, a
+config file will be copied into the the snaplets/postgresql-auth directory.
+This file contains all of the configurable options for the snaplet and allows
+you to change them without recompiling your application.  
+
+To use this snaplet in your application enable the session, postgres, and auth
+snaplets as follows:
+
+> data App = App
+>     { ... -- your own application state here
+>     , _sess :: Snaplet SessionManager
+>     , _db   :: Snaplet Postgres
+>     , _auth :: Snaplet (AuthManager App)
+>     }
+
+Then in your initializer you'll have something like this:
+
+> d <- nestSnaplet "db" db pgsInit
+> a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
+
+-}
+
 module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ( initPostgresAuth
   ) where
 
 ------------------------------------------------------------------------------
 import           Control.Arrow
-import qualified Data.ByteString as B
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
-import           Data.List
 import qualified Data.Text as T
+import           Data.Text (Text)
 import qualified Data.Text.Encoding as T
 import           Data.Maybe
 import           Data.Pool
@@ -57,20 +81,7 @@ settingsFromConfig = do
 
 
 ------------------------------------------------------------------------------
--- | Initializer for the postgres backend to the auth snaplet.  To use this
--- in your application first add this line to your application state:
---
--- > data App = App
--- >     { ... -- your own application state here
--- >     , _sess :: Snaplet SessionManager
--- >     , _db   :: Snaplet Postgres
--- >     , _auth :: Snaplet (AuthManager App)
--- >     }
---
--- Then in your initializer you'll have something like this:
---
--- > d <- nestSnaplet "db" db pgsInit
--- > a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
+-- | Initializer for the postgres backend to the auth snaplet.
 --
 initPostgresAuth
   :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
@@ -109,31 +120,31 @@ createTableIfMissing PostgresAuthManager{..} = do
     withResource pamConnPool $ \conn -> do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
-          `T.append` (T.pack $ tblName pamTable) `T.append` "'"
+          `T.append` tblName pamTable `T.append` "'"
         when (null (res :: [Only T.Text])) $
           P.execute_ conn (Query q) >> return ()
     return ()
   where
     q = T.encodeUtf8 $ "CREATE TABLE " `T.append`
-                       (T.pack (tblName pamTable)) `T.append`
+                       tblName pamTable `T.append`
                        " (" `T.append`
-      T.intercalate ","
-      ["id SERIAL PRIMARY KEY"
-      ,"login text UNIQUE NOT NULL"
-      ,"password text"
-      ,"activated_at timestamp"
-      ,"suspended_at timestamp"
-      ,"remember_token text"
-      ,"login_count integer NOT NULL"
-      ,"failed_login_count integer NOT NULL"
-      ,"locked_out_until timestamp"
-      ,"current_login_at timestamp"
-      ,"last_login_at timestamp"
-      ,"current_login_ip text"
-      ,"last_login_ip text"
-      ,"created_at timestamp"
-      ,"updated_at timestamp)"
-      ]
+          T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
+--      ["uid SERIAL PRIMARY KEY"
+--      ,"login text UNIQUE NOT NULL"
+--      ,"password text"
+--      ,"activated_at timestamp"
+--      ,"suspended_at timestamp"
+--      ,"remember_token text"
+--      ,"login_count integer NOT NULL"
+--      ,"failed_login_count integer NOT NULL"
+--      ,"locked_out_until timestamp"
+--      ,"current_login_at timestamp"
+--      ,"last_login_at timestamp"
+--      ,"current_login_ip text"
+--      ,"last_login_ip text"
+--      ,"created_at timestamp"
+--      ,"updated_at timestamp)"
+--      ]
 
 buildUid :: Int -> UserId
 buildUid = UserId . T.pack . show
@@ -206,51 +217,54 @@ instance P.Param Password where
 -- | Datatype containing the names of the columns for the authentication table.
 data AuthTable
   =  AuthTable
-  {  tblName :: String
-  ,  colId :: String
-  ,  colLogin :: String
-  ,  colPassword :: String
-  ,  colActivatedAt :: String
-  ,  colSuspendedAt :: String
-  ,  colRememberToken :: String
-  ,  colLoginCount :: String
-  ,  colFailedLoginCount :: String
-  ,  colLockedOutUntil :: String
-  ,  colCurrentLoginAt :: String
-  ,  colLastLoginAt :: String
-  ,  colCurrentLoginIp :: String
-  ,  colLastLoginIp :: String
-  ,  colCreatedAt :: String
-  ,  colUpdatedAt :: String
-  ,  rolesTable :: String
+  {  tblName             :: Text
+  ,  colId               :: (Text, Text)
+  ,  colLogin            :: (Text, Text)
+  ,  colPassword         :: (Text, Text)
+  ,  colActivatedAt      :: (Text, Text)
+  ,  colSuspendedAt      :: (Text, Text)
+  ,  colRememberToken    :: (Text, Text)
+  ,  colLoginCount       :: (Text, Text)
+  ,  colFailedLoginCount :: (Text, Text)
+  ,  colLockedOutUntil   :: (Text, Text)
+  ,  colCurrentLoginAt   :: (Text, Text)
+  ,  colLastLoginAt      :: (Text, Text)
+  ,  colCurrentLoginIp   :: (Text, Text)
+  ,  colLastLoginIp      :: (Text, Text)
+  ,  colCreatedAt        :: (Text, Text)
+  ,  colUpdatedAt        :: (Text, Text)
+  ,  rolesTable          :: Text
   }
 
 -- | Default authentication table layout
 defAuthTable :: AuthTable
 defAuthTable
   =  AuthTable
-  {  tblName = "snap_auth_user"
-  ,  colId = "uid"
-  ,  colLogin = "login"
-  ,  colPassword = "password"
-  ,  colActivatedAt = "activated_at"
-  ,  colSuspendedAt = "suspended_at"
-  ,  colRememberToken = "remember_token"
-  ,  colLoginCount = "login_count"
-  ,  colFailedLoginCount = "failed_login_count"
-  ,  colLockedOutUntil = "locked_out_until"
-  ,  colCurrentLoginAt = "current_login_at"
-  ,  colLastLoginAt = "last_login_at"
-  ,  colCurrentLoginIp = "current_login_ip"
-  ,  colLastLoginIp = "last_login_ip"
-  ,  colCreatedAt = "created_at"
-  ,  colUpdatedAt = "updated_at"
-  ,  rolesTable = "user_roles"
+  {  tblName             = "snap_auth_user"
+  ,  colId               = ("uid", "SERIAL PRIMARY KEY")
+  ,  colLogin            = ("login", "text UNIQUE NOT NULL")
+  ,  colPassword         = ("password", "text")
+  ,  colActivatedAt      = ("activated_at", "timestamp")
+  ,  colSuspendedAt      = ("suspended_at", "timestamp")
+  ,  colRememberToken    = ("remember_token", "text")
+  ,  colLoginCount       = ("login_count", "integer NOT NULL")
+  ,  colFailedLoginCount = ("failed_login_count", "integer NOT NULL")
+  ,  colLockedOutUntil   = ("locked_out_until", "timestamp")
+  ,  colCurrentLoginAt   = ("current_login_at", "timestamp")
+  ,  colLastLoginAt      = ("last_login_at", "timestamp")
+  ,  colCurrentLoginIp   = ("current_login_ip", "text")
+  ,  colLastLoginIp      = ("last_login_ip", "text")
+  ,  colCreatedAt        = ("created_at", "timestamp")
+  ,  colUpdatedAt        = ("updated_at", "timestamp")
+  ,  rolesTable          = "user_roles"
   }
+
+fDesc :: (Text, Text) -> Text
+fDesc f = fst f `T.append` " " `T.append` snd f
 
 -- | List of deconstructors so it's easier to extract column names from an
 -- 'AuthTable'.
-colDef :: [(AuthTable -> String, AuthUser -> P.Action)]
+colDef :: [(AuthTable -> (Text, Text), AuthUser -> P.Action)]
 colDef =
   [ (colLogin           , P.render . userLogin)
   , (colPassword        , P.render . userPassword)
@@ -268,20 +282,21 @@ colDef =
   , (colUpdatedAt       , P.render . userUpdatedAt)
   ]
 
-saveQuery :: AuthTable -> AuthUser -> ([Char], [P.Action])
+saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
 saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
   where
-    insertQuery =  ("INSERT INTO " ++ tblName at ++ " (" ++
-                   intercalate "," cols
-                   ++ ") VALUES (" ++
-                   intercalate "," vals
-                   ++ ")", params)
-    qval f  = f at ++ " = ?"
-    updateQuery uid =  ("UPDATE " ++ tblName at ++ " SET " ++
-                       intercalate "," (map (qval . fst) colDef)
-                       ++ " WHERE " ++ colId at ++ " = ?"
+    insertQuery =  ("INSERT INTO " `T.append` tblName at `T.append`
+                    " (" `T.append` T.intercalate "," cols `T.append`
+                    ") VALUES (" `T.append` T.intercalate "," vals
+                   `T.append` ")", params)
+    qval f  = fst (f at) `T.append` " = ?"
+    updateQuery uid =  ("UPDATE " `T.append` tblName at `T.append`
+                        " SET " `T.append`
+                       T.intercalate "," (map (qval . fst) colDef)
+                       `T.append` " WHERE " `T.append` fst (colId at)
+                       `T.append` " = ?"
                        , params ++ [P.render $ unUid uid])
-    cols = map (($at) . fst) colDef
+    cols = map (fst . ($at) . fst) colDef
     vals = map (const "?") cols
     params = map (($u) . snd) colDef
             
@@ -291,35 +306,37 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
 instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
-        let q = Query $ T.encodeUtf8 $ T.pack qstr
+        let q = Query $ T.encodeUtf8 qstr
         withResource pamConnPool $ \conn -> do
             P.begin conn
             P.execute conn q params
-            let q2 = Query $ T.encodeUtf8 $ T.pack $
-                     "select * from " ++ tblName pamTable ++
+            let q2 = Query $ T.encodeUtf8 $
+                     "select * from " `T.append` tblName pamTable `T.append`
                      " where login = ?"
             res <- P.query conn q2 [userLogin]
             P.commit conn
             return $ fromMaybe u $ listToMaybe res
 
     lookupByUserId PostgresAuthManager{..} uid = do
-        let q = Query $ T.encodeUtf8 $ T.pack $
-                "select * from " ++ tblName pamTable ++ " where id = ?"
+        let q = Query $ T.encodeUtf8 $
+                "select * from " `T.append` tblName pamTable `T.append`
+                " where uid = ?"
         querySingle pamConnPool q [unUid uid]
 
     lookupByLogin PostgresAuthManager{..} login = do
-        let q = Query $ T.encodeUtf8 $ T.pack $
-                "select * from " ++ tblName pamTable ++ " where login = ?"
+        let q = Query $ T.encodeUtf8 $
+                "select * from " `T.append` tblName pamTable `T.append`
+                " where login = ?"
         querySingle pamConnPool q [login]
 
     lookupByRememberToken PostgresAuthManager{..} token = do
-        let q = Query $ T.encodeUtf8 $ T.pack $
-                "select * from " ++ tblName pamTable ++
+        let q = Query $ T.encodeUtf8 $
+                "select * from " `T.append` tblName pamTable `T.append`
                 " where remember_token = ?"
         querySingle pamConnPool q [token]
 
     destroy PostgresAuthManager{..} AuthUser{..} = do
-        let q = Query $ T.encodeUtf8 $ T.pack $
-                "delete from " ++ tblName pamTable ++ " where login = ?"
+        let q = Query $ T.encodeUtf8 $
+                "delete from " `T.append` tblName pamTable `T.append` " where login = ?"
         authExecute pamConnPool q [userLogin]
 
