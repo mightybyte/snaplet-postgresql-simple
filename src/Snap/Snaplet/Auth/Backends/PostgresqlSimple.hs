@@ -110,7 +110,8 @@ createTableIfMissing PostgresAuthManager{..} = do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
           `T.append` (T.pack $ tblName pamTable) `T.append` "'"
-        when (null (res :: [Only T.Text])) $ P.execute_ conn (Query q) >> return ()
+        when (null (res :: [Only T.Text])) $
+          P.execute_ conn (Query q) >> return ()
     return ()
   where
     q = T.encodeUtf8 $ "CREATE TABLE " `T.append`
@@ -288,35 +289,38 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
 ------------------------------------------------------------------------------
 -- | 
 instance IAuthBackend PostgresAuthManager where
-    --save :: PostgresAuthManager -> AuthUser -> IO AuthUser
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 $ T.pack qstr
         withResource pamConnPool $ \conn -> do
             P.begin conn
             P.execute conn q params
-            res <- P.query conn (Query $ T.encodeUtf8 $ T.pack $ "select * from " ++ tblName pamTable ++ " where login = ?")
-                    [userLogin]
+            let q2 = Query $ T.encodeUtf8 $ T.pack $
+                     "select * from " ++ tblName pamTable ++
+                     " where login = ?"
+            res <- P.query conn q2 [userLogin]
             P.commit conn
             return $ fromMaybe u $ listToMaybe res
 
-    --lookupByUserId :: PostgresAuthManager -> UserId -> IO (Maybe AuthUser)
     lookupByUserId PostgresAuthManager{..} uid =
-        querySingle pamConnPool (Query $ T.encodeUtf8 $ T.pack $ "select * from " ++ tblName pamTable ++ " where id = ?")
+        let q = Query $ T.encodeUtf8 $ T.pack $
+                "select * from " ++ tblName pamTable ++ " where id = ?"
+        querySingle pamConnPool q
                     [unUid uid]
 
-    --lookupByLogin :: PostgresAuthManager -> Text -> IO (Maybe AuthUser)
     lookupByLogin PostgresAuthManager{..} login =
-        querySingle pamConnPool (Query $ T.encodeUtf8 $ T.pack $ "select * from " ++ tblName pamTable ++ " where login = ?")
-                    [login]
+        let q = Query $ T.encodeUtf8 $ T.pack $
+                "select * from " ++ tblName pamTable ++ " where login = ?"
+        querySingle pamConnPool q [login]
 
-    --lookupByRememberToken :: PostgresAuthManager -> Text -> IO (Maybe AuthUser)
     lookupByRememberToken PostgresAuthManager{..} token =
-        querySingle pamConnPool (Query $ T.encodeUtf8 $ T.pack $ "select * from " ++ tblName pamTable ++ " where remember_token = ?")
-                    [token]
+        let q = Query $ T.encodeUtf8 $ T.pack $
+                "select * from " ++ tblName pamTable ++
+                " where remember_token = ?"
+        querySingle pamConnPool q [token]
 
-    --destroy :: PostgresAuthManager -> AuthUser -> IO ()
     destroy PostgresAuthManager{..} AuthUser{..} =
-        authExecute pamConnPool (Query $ T.encodeUtf8 $ T.pack $ "delete from " ++ tblName pamTable ++ " where login = ?")
-                    [userLogin]
+        let q = Query $ T.encodeUtf8 $ T.pack $
+                "delete from " ++ tblName pamTable ++ " where login = ?"
+        authExecute pamConnPool q [userLogin]
 
