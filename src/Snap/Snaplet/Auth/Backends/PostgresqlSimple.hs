@@ -302,24 +302,23 @@ instance IAuthBackend PostgresAuthManager where
             P.commit conn
             return $ fromMaybe u $ listToMaybe res
 
-    lookupByUserId PostgresAuthManager{..} uid =
+    lookupByUserId PostgresAuthManager{..} uid = do
         let q = Query $ T.encodeUtf8 $ T.pack $
                 "select * from " ++ tblName pamTable ++ " where id = ?"
-        querySingle pamConnPool q
-                    [unUid uid]
+        querySingle pamConnPool q [unUid uid]
 
-    lookupByLogin PostgresAuthManager{..} login =
+    lookupByLogin PostgresAuthManager{..} login = do
         let q = Query $ T.encodeUtf8 $ T.pack $
                 "select * from " ++ tblName pamTable ++ " where login = ?"
         querySingle pamConnPool q [login]
 
-    lookupByRememberToken PostgresAuthManager{..} token =
+    lookupByRememberToken PostgresAuthManager{..} token = do
         let q = Query $ T.encodeUtf8 $ T.pack $
                 "select * from " ++ tblName pamTable ++
                 " where remember_token = ?"
         querySingle pamConnPool q [token]
 
-    destroy PostgresAuthManager{..} AuthUser{..} =
+    destroy PostgresAuthManager{..} AuthUser{..} = do
         let q = Query $ T.encodeUtf8 $ T.pack $
                 "delete from " ++ tblName pamTable ++ " where login = ?"
         authExecute pamConnPool q [userLogin]
