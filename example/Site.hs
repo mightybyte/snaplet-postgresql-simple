@@ -69,9 +69,9 @@ addHandler = do
 -- | The application initializer.
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
-    s <- nestSnaplet "" sess $ initCookieSessionManager "site_key.txt"
-                                                        "_cookie" Nothing
-    d <- nestSnaplet "db" db $ pgsInit
+    s <- nestSnaplet "" sess $
+         initCookieSessionManager "site_key.txt" "_cookie" Nothing
+    d <- nestSnaplet "db" db pgsInit
     a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
     addRoutes routes
     return $ App s d a

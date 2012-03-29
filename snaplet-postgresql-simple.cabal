@@ -16,6 +16,10 @@ category:       Web
 
 extra-source-files:  LICENSE
 
+data-files:
+  resources/db/snaplet.cfg
+  resources/auth/snaplet.cfg
+
 source-repository head
   type:     git
   location: https://github.com/mightybyte/snaplet-postgresql-simple.git
@@ -26,6 +30,7 @@ Library
   exposed-modules:
     Snap.Snaplet.PostgresqlSimple
     Snap.Snaplet.Auth.Backends.PostgresqlSimple
+    Paths_snaplet_postgresql_simple
 
   build-depends:
     base                       >= 4       && < 5,

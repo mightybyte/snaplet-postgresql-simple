@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Snap.Snaplet.Auth.Backends.PostgresqlSimple where
+module Snap.Snaplet.Auth.Backends.PostgresqlSimple
+  ( initPostgresAuth
+  ) where
 
 ------------------------------------------------------------------------------
 import           Control.Arrow
@@ -25,6 +27,7 @@ import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
 import           Snap.Snaplet.Session.Common
 import           Web.ClientSession
+import           Paths_snaplet_postgresql_simple
 
 
 data PostgresAuthManager = PostgresAuthManager
@@ -46,19 +49,34 @@ settingsFromConfig = do
     rememberPeriod <- liftIO $ C.lookup config "rememberPeriod"
     let rp = maybe id (\x s -> s { asRememberPeriod = Just x }) rememberPeriod
     lockout <- liftIO $ C.lookup config "lockout"
-    let lo = maybe id (\x s -> s { asLockout = Just (second fromInteger x) }) lockout
+    let lo = maybe id (\x s -> s { asLockout = Just (second fromInteger x) })
+                   lockout
     siteKey <- liftIO $ C.lookup config "siteKey"
     let sk = maybe id (\x s -> s { asSiteKey = x }) siteKey
     return $ (pw . rc . rp . lo . sk) defAuthSettings
 
 
 ------------------------------------------------------------------------------
--- | 
+-- | Initializer for the postgres backend to the auth snaplet.  To use this
+-- in your application first add this line to your application state:
+--
+-- > data App = App
+-- >     { ... -- your own application state here
+-- >     , _sess :: Snaplet SessionManager
+-- >     , _db   :: Snaplet Postgres
+-- >     , _auth :: Snaplet (AuthManager App)
+-- >     }
+--
+-- Then in your initializer you'll have something like this:
+--
+-- > d <- nestSnaplet "db" db pgsInit
+-- > a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
+--
 initPostgresAuth
   :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
   -> Snaplet Postgres  -- ^ The postgres snaplet
   -> SnapletInit b (AuthManager b)
-initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
+initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
     authSettings <- settingsFromConfig
@@ -81,6 +99,7 @@ initPostgresAuth sess db = makeSnaplet "PostgresAuth" desc Nothing $ do
       }
   where
     desc = "A PostgreSQL backend for user authentication"
+    datadir = Just $ liftM (++"/resources/auth") getDataDir
 
 
 ------------------------------------------------------------------------------
@@ -209,7 +228,7 @@ data AuthTable
 defAuthTable :: AuthTable
 defAuthTable
   =  AuthTable
-  {  tblName = "user"
+  {  tblName = "snap_auth_user"
   ,  colId = "uid"
   ,  colLogin = "login"
   ,  colPassword = "password"

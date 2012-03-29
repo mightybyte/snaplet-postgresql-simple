@@ -68,6 +68,8 @@ import           Database.PostgreSQL.Simple.QueryParams
 import           Database.PostgreSQL.Simple.QueryResults
 import qualified Database.PostgreSQL.Simple as P
 import           Snap.Snaplet
+import           Paths_snaplet_postgresql_simple
+
 
 
 ------------------------------------------------------------------------------
@@ -85,7 +87,6 @@ class (MonadCatchIO m, MonadState Postgres m) => HasPostgres m where
     getPostgresState :: m Postgres
 
 
---logErr :: Monad m => String -> Maybe a -> m (Either String a)
 logErr :: MonadIO m
        => t -> IO (Maybe a) -> WriterT [t] m (Maybe a)
 logErr err m = do
@@ -94,9 +95,9 @@ logErr err m = do
     return res
 
 ------------------------------------------------------------------------------
--- | Initialise the snaplet
+-- | Initialize the snaplet
 pgsInit :: SnapletInit b Postgres
-pgsInit = makeSnaplet "postgresql-simple" description Nothing $ do
+pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
     config <- getSnapletUserConfig
     (mci,errs) <- runWriterT $ do
         host <- logErr "Must specify postgres host" $ C.lookup config "host"
@@ -111,6 +112,7 @@ pgsInit = makeSnaplet "postgresql-simple" description Nothing $ do
     return $ Postgres pool Nothing
   where
     description = "PostgreSQL abstraction"
+    datadir = Just $ liftM (++"/resources/db") getDataDir
 
 
 ------------------------------------------------------------------------------
