@@ -6,7 +6,7 @@
 
 This module allows you to use the auth snaplet with your user database stored
 in a PostgreSQL database.  When you run your application with this snaplet, a
-config file will be copied into the the snaplets/postgresql-auth directory.
+config file will be copied into the the @snaplets/postgresql-auth@ directory.
 This file contains all of the configurable options for the snaplet and allows
 you to change them without recompiling your application.  
 
