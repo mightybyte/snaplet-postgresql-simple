@@ -45,13 +45,6 @@ routes = [ ("/",            writeText "hello")
          , ("add/:uname", addHandler)
          ]
 
-instance IAuthBackend (AuthManager b) where
-    save AuthManager{..} u = save backend u
-    lookupByUserId AuthManager{..} u = lookupByUserId backend u
-    lookupByLogin AuthManager{..} u = lookupByLogin backend u
-    lookupByRememberToken AuthManager{..} u = lookupByRememberToken backend u
-    destroy AuthManager{..} u = destroy backend u
-
 instance HasPostgres (Handler App Postgres) where
     getPostgresState = get
 
