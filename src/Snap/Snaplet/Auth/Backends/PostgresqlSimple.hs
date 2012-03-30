@@ -125,13 +125,16 @@ createTableIfMissing PostgresAuthManager{..} = do
           "select relname from pg_class where relname='"
           `T.append` tblName pamTable `T.append` "'"
         when (null (res :: [Only T.Text])) $
-          P.execute_ conn (Query q) >> return ()
+          P.execute_ conn (Query $ T.encodeUtf8 q) >> return ()
     return ()
   where
-    q = T.encodeUtf8 $ "CREATE TABLE " `T.append`
-                       tblName pamTable `T.append`
-                       " (" `T.append`
-          T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
+    q = T.concat
+          [ "CREATE TABLE "
+          , tblName pamTable
+          , " ("
+          , T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
+          , ")"
+          ]
 
 buildUid :: Int -> UserId
 buildUid = UserId . T.pack . show
@@ -253,7 +256,8 @@ fDesc f = fst f `T.append` " " `T.append` snd f
 -- 'AuthTable'.
 colDef :: [(AuthTable -> (Text, Text), AuthUser -> P.Action)]
 colDef =
-  [ (colLogin           , P.render . userLogin)
+  [ (colId              , P.render . fmap unUid . userId)
+  , (colLogin           , P.render . userLogin)
   , (colPassword        , P.render . userPassword)
   , (colActivatedAt     , P.render . userActivatedAt)
   , (colSuspendedAt     , P.render . userSuspendedAt)
@@ -286,15 +290,15 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
         (T.concat [ "UPDATE "
                   , tblName at
                   , " SET "
-                  , T.intercalate "," (map (qval . fst) colDef)
+                  , T.intercalate "," (map (qval . fst) $ tail colDef)
                   , " WHERE "
                   , fst (colId at)
                   , " = ?"
                   ]
         , params ++ [P.render $ unUid uid])
-    cols = map (fst . ($at) . fst) colDef
+    cols = map (fst . ($at) . fst) $ tail colDef
     vals = map (const "?") cols
-    params = map (($u) . snd) colDef
+    params = map (($u) . snd) $ tail colDef
             
 
 ------------------------------------------------------------------------------
