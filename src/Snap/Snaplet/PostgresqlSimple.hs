@@ -1,11 +1,58 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
 
-module Snap.Snaplet.PostgresqlSimple
-  ( Postgres
+{-|
+
+This snaplet makes it simple to use a PostgreSQL database from your Snap
+application and is based on the excellent postgresql-simple library
+(<http://hackage.haskell.org/package/postgresql-simple>) by Bryan O'Sullivan.
+Now, adding a database to your web app takes just two simple steps.
+
+First, include this snaplet in your application's state.
+
+> data App = App
+>     { ... -- Other state needed in your app
+>     , _db :: Snaplet Postgres
+>     }
+
+Next, call the pgsInit from your application's initializer.
+
+> appInit = makeSnaplet ... $ do
+>     ...
+>     d <- nestSnaplet "db" db pgsInit
+>     return $ App ... d
+
+Now you can use any of the postgresql-simple wrapper functions defined in this
+module anywhere in your application handlers.  For instance:
+
+> postHandler :: Handler App App ()
+> postHandler = do
+>     posts <- with db $ query_ "select * from blog_post"
+>     ...
+
+Optionally, if you find yourself doing many database queries, you can eliminate some of the boilerplate by defining a HasPostgres instance for your application.
+
+> instance HasPostgres (Handler b App) where
+>   getPostgresState = with db get
+
+With this code, our postHandler example no longer requires the 'with' function:
+
+> postHandler :: Handler App App ()
+> postHandler = do
+>     posts <- query_ "select * from blog_post"
+>     ...
+
+-}
+
+module Snap.Snaplet.PostgresqlSimple (
+  -- * The Snaplet
+    Postgres
   , pgPool
   , HasPostgres(..)
   , pgsInit
+
+  -- * Wrappers and re-exports
   , query
   , query_
   , fold
@@ -54,7 +101,7 @@ module Snap.Snaplet.PostgresqlSimple
 import           Prelude hiding (catch)
 
 import           Control.Applicative
-import           Control.Monad.CatchIO
+import           Control.Monad.CatchIO hiding (Handler)
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Trans.Writer
@@ -73,18 +120,25 @@ import           Paths_snaplet_postgresql_simple
 
 
 ------------------------------------------------------------------------------
--- | 
+-- | The state for the postgresql-simple snaplet. To use it in your app
+-- include this in your application state and use pgsInit to initialize it.
 data Postgres = Postgres
     { pgPool :: Pool P.Connection
-    , pgConnection :: Maybe P.Connection
+    -- ^ Function for retrieving the connection pool
     }
 
 
 ------------------------------------------------------------------------------
--- | Instantiate this typeclass on 'Handler b YourSnapletState' so this snaplet
+-- | Instantiate this typeclass on 'Handler b YourAppState' so this snaplet
 -- can find the connection source.
-class (MonadCatchIO m, MonadState Postgres m) => HasPostgres m where
+class (MonadCatchIO m) => HasPostgres m where
     getPostgresState :: m Postgres
+
+
+------------------------------------------------------------------------------
+-- | Default instance
+instance HasPostgres (Handler b Postgres) where
+    getPostgresState = get
 
 
 logErr :: MonadIO m
@@ -109,7 +163,7 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
     let ci = fromMaybe (error $ intercalate "\n" errs) mci
 
     pool <- liftIO $ createPool (P.connect ci) P.close 1 5 20
-    return $ Postgres pool Nothing
+    return $ Postgres pool
   where
     description = "PostgreSQL abstraction"
     datadir = Just $ liftM (++"/resources/db") getDataDir
@@ -118,36 +172,30 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
 ------------------------------------------------------------------------------
 -- | Convenience function for executing a function that needs a database
 -- connection.
-withPG :: (MonadState Postgres m, MonadCatchIO m)
+withPG :: (HasPostgres m)
        => (P.Connection -> IO b) -> m b
 withPG f = do
-    mConn <- gets pgConnection
-    maybe getResource (liftIO . f) mConn
-  where
-    getResource = do
-        pool <- gets pgPool
-        withResource pool wrapper
-    wrapper c = do
-        modify (\p -> p { pgConnection = Just c })
-        liftIO $ f c
+    s <- getPostgresState
+    let pool = pgPool s
+    liftIO $ withResource pool f
 
 
 ------------------------------------------------------------------------------
--- | 
+-- | See 'P.query'
 query :: (HasPostgres m, QueryParams q, QueryResults r)
       => P.Query -> q -> m [r]
 query q params = withPG (\c -> P.query c q params)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- | See 'P.query_'
 query_ :: (HasPostgres m, QueryResults r) => P.Query -> m [r]
 query_ q = withPG (\c -> P.query_ c q)
 
 
 ------------------------------------------------------------------------------
 -- | 
-fold :: (MonadState Postgres m,
+fold :: (HasPostgres m,
          QueryResults row,
          QueryParams params,
          MonadCatchIO m)
@@ -157,7 +205,7 @@ fold template qs a f = withPG (\c -> P.fold c template qs a f)
 
 ------------------------------------------------------------------------------
 -- | 
-foldWithOptions :: (MonadState Postgres m,
+foldWithOptions :: (HasPostgres m,
                     QueryResults row,
                     QueryParams params,
                     MonadCatchIO m)
@@ -173,7 +221,7 @@ foldWithOptions opts template qs a f =
 
 ------------------------------------------------------------------------------
 -- | 
-fold_ :: (MonadState Postgres m,
+fold_ :: (HasPostgres m,
           QueryResults row,
           MonadCatchIO m)
       => P.Query -> b -> (b -> row -> IO b) -> m b
@@ -182,7 +230,7 @@ fold_ template a f = withPG (\c -> P.fold_ c template a f)
 
 ------------------------------------------------------------------------------
 -- | 
-foldWithOptions_ :: (MonadState Postgres m,
+foldWithOptions_ :: (HasPostgres m,
                      QueryResults row,
                      MonadCatchIO m)
                  => P.FoldOptions
@@ -196,7 +244,7 @@ foldWithOptions_ opts template a f =
 
 ------------------------------------------------------------------------------
 -- | 
-forEach :: (MonadState Postgres m,
+forEach :: (HasPostgres m,
             QueryResults r,
             QueryParams q,
             MonadCatchIO m)
@@ -206,7 +254,7 @@ forEach template qs f = withPG (\c -> P.forEach c template qs f)
 
 ------------------------------------------------------------------------------
 -- | 
-forEach_ :: (MonadState Postgres m,
+forEach_ :: (HasPostgres m,
              QueryResults r,
              MonadCatchIO m)
          => P.Query -> (r -> IO ()) -> m ()
@@ -215,59 +263,59 @@ forEach_ template f = withPG (\c -> P.forEach_ c template f)
 
 ------------------------------------------------------------------------------
 -- | 
-execute :: (MonadState Postgres m, QueryParams q, MonadCatchIO m)
+execute :: (HasPostgres m, QueryParams q, MonadCatchIO m)
         => P.Query -> q -> m Int64
 execute template qs = withPG (\c -> P.execute c template qs)
 
 
 ------------------------------------------------------------------------------
 -- | 
-execute_ :: (MonadState Postgres m, MonadCatchIO m)
+execute_ :: (HasPostgres m, MonadCatchIO m)
          => P.Query -> m Int64
 execute_ template = withPG (\c -> P.execute_ c template)
 
 
 ------------------------------------------------------------------------------
 -- | 
-executeMany :: (MonadState Postgres m, QueryParams q, MonadCatchIO m)
+executeMany :: (HasPostgres m, QueryParams q, MonadCatchIO m)
         => P.Query -> [q] -> m Int64
 executeMany template qs = withPG (\c -> P.executeMany c template qs)
 
 
-begin :: (MonadState Postgres m, MonadCatchIO m) => m ()
+begin :: (HasPostgres m, MonadCatchIO m) => m ()
 begin = withPG P.begin
 
 
-beginLevel :: (MonadState Postgres m, MonadCatchIO m)
+beginLevel :: (HasPostgres m, MonadCatchIO m)
            => P.IsolationLevel -> m ()
 beginLevel lvl = withPG (P.beginLevel lvl)
 
 
-beginMode :: (MonadState Postgres m, MonadCatchIO m)
+beginMode :: (HasPostgres m, MonadCatchIO m)
           => P.TransactionMode -> m ()
 beginMode mode = withPG (P.beginMode mode)
 
 
-rollback :: (MonadState Postgres m, MonadCatchIO m) => m ()
+rollback :: (HasPostgres m, MonadCatchIO m) => m ()
 rollback = withPG P.rollback
 
 
-commit :: (MonadState Postgres m, MonadCatchIO m) => m ()
+commit :: (HasPostgres m, MonadCatchIO m) => m ()
 commit = withPG P.commit
 
 
-withTransaction :: (MonadState Postgres m, MonadCatchIO m)
+withTransaction :: (HasPostgres m, MonadCatchIO m)
                 => m a -> m a
 withTransaction = withTransactionMode P.defaultTransactionMode
 
 
-withTransactionLevel :: (MonadState Postgres m, MonadCatchIO m)
+withTransactionLevel :: (HasPostgres m, MonadCatchIO m)
                      => P.IsolationLevel -> m a -> m a
 withTransactionLevel lvl
     = withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
 
 
-withTransactionMode :: (MonadState Postgres m, MonadCatchIO m)
+withTransactionMode :: (HasPostgres m, MonadCatchIO m)
                     => P.TransactionMode -> m a -> m a
 withTransactionMode mode act = do
     beginMode mode
@@ -276,12 +324,12 @@ withTransactionMode mode act = do
     return r
 
 
-formatMany :: (QueryParams q, MonadState Postgres m, MonadCatchIO m)
+formatMany :: (QueryParams q, HasPostgres m, MonadCatchIO m)
            => P.Query -> [q] -> m ByteString
 formatMany q qs = withPG (\c -> P.formatMany c q qs)
 
 
-formatQuery :: (QueryParams q, MonadState Postgres m, MonadCatchIO m)
+formatQuery :: (QueryParams q, HasPostgres m, MonadCatchIO m)
             => P.Query -> q -> m ByteString
 formatQuery q qs = withPG (\c -> P.formatQuery c q qs)
 

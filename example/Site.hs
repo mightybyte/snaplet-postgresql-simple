@@ -37,6 +37,9 @@ data App = App
 
 makeLens ''App
 
+instance HasPostgres (Handler b App) where
+    getPostgresState = with db get
+
 ------------------------------------------------------------------------------
 -- | The application's routes.
 routes :: [(ByteString, Handler App App ())]
@@ -45,11 +48,8 @@ routes = [ ("/",            writeText "hello")
          , ("add/:uname", addHandler)
          ]
 
-instance HasPostgres (Handler App Postgres) where
-    getPostgresState = get
-
 fooHandler = do
-    results <- with db $ query_ "select * from snap_auth_user"
+    results <- query_ "select * from snap_auth_user"
     liftIO $ print (results :: [AuthUser])
 
 addHandler = do
