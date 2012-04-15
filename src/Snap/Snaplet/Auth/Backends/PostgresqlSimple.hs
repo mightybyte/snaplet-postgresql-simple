@@ -35,7 +35,6 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Arrow
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
@@ -52,7 +51,6 @@ import           Snap
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
-import           Snap.Snaplet.Session.Common
 import           Web.ClientSession
 import           Paths_snaplet_postgresql_simple
 
@@ -61,26 +59,6 @@ data PostgresAuthManager = PostgresAuthManager
     { pamTable    :: AuthTable
     , pamConnPool :: Pool P.Connection
     }
-
-
-------------------------------------------------------------------------------
--- | Simple function to get auth settings from a config file.  All options
--- are optional and default to what's in defAuthSettings if not supplied.
-settingsFromConfig :: Initializer b (AuthManager b) AuthSettings
-settingsFromConfig = do
-    config <- getSnapletUserConfig
-    minPasswordLen <- liftIO $ C.lookup config "minPasswordLen"
-    let pw = maybe id (\x s -> s { asMinPasswdLen = x }) minPasswordLen
-    rememberCookie <- liftIO $ C.lookup config "rememberCookie"
-    let rc = maybe id (\x s -> s { asRememberCookieName = x }) rememberCookie
-    rememberPeriod <- liftIO $ C.lookup config "rememberPeriod"
-    let rp = maybe id (\x s -> s { asRememberPeriod = Just x }) rememberPeriod
-    lockout <- liftIO $ C.lookup config "lockout"
-    let lo = maybe id (\x s -> s { asLockout = Just (second fromInteger x) })
-                   lockout
-    siteKey <- liftIO $ C.lookup config "siteKey"
-    let sk = maybe id (\x s -> s { asSiteKey = x }) siteKey
-    return $ (pw . rc . rp . lo . sk) defAuthSettings
 
 
 ------------------------------------------------------------------------------
@@ -93,7 +71,7 @@ initPostgresAuth
 initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
-    authSettings <- settingsFromConfig
+    authSettings <- authSettingsFromConfig
     key <- liftIO $ getKey (asSiteKey authSettings)
     let tableDesc = defAuthTable { tblName = authTable }
     let manager = PostgresAuthManager tableDesc $
