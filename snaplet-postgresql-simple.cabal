@@ -17,8 +17,8 @@ category:       Web
 extra-source-files:  LICENSE
 
 data-files:
-  resources/db/snaplet.cfg
-  resources/auth/snaplet.cfg
+  resources/db/devel.cfg
+  resources/auth/devel.cfg
 
 source-repository head
   type:     git
