@@ -171,7 +171,11 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
         return $ P.ConnectInfo <$> host <*> port <*> user <*> pwd <*> db
     let ci = fromMaybe (error $ intercalate "\n" errs) mci
 
-    pool <- liftIO $ createPool (P.connect ci) P.close 1 5 20
+    stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
+    idle <- liftIO $ C.lookupDefault 5 config "idleTime"
+    resources <- liftIO $ C.lookupDefault 20 config "maxResourcesPerStripe"
+    pool <- liftIO $ createPool (P.connect ci) P.close stripes
+                                (realToFrac (idle :: Double)) resources
     return $ Postgres pool
   where
     description = "PostgreSQL abstraction"

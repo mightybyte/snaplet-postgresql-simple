@@ -44,7 +44,7 @@ Library
     snap                       >= 0.9     && < 0.10,
     text                       >= 0.11    && < 0.12,
     transformers               >= 0.2     && < 0.3,
-    unordered-containers       >= 0.1.4   && < 0.2
+    unordered-containers       >= 0.2     && < 0.3
 
 
   ghc-options: -Wall -fwarn-tabs -funbox-strict-fields
