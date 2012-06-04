@@ -43,9 +43,9 @@ import qualified Data.Text.Encoding as T
 import           Data.Maybe
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
-import qualified Database.PostgreSQL.Simple.Param as P
-import           Database.PostgreSQL.Simple.Result
-import           Database.PostgreSQL.Simple.QueryResults
+import qualified Database.PostgreSQL.Simple.ToField as P
+import           Database.PostgreSQL.Simple.FromField
+import           Database.PostgreSQL.Simple.FromRow
 import           Database.PostgreSQL.Simple.Types
 import           Snap
 import           Snap.Snaplet.Auth
@@ -118,15 +118,14 @@ buildUid :: Int -> UserId
 buildUid = UserId . T.pack . show
 
 
-instance Result UserId where
-    convert f v = buildUid <$> convert f v
+instance FromField UserId where
+    fromField f v = buildUid <$> fromField f v
 
-instance Result Password where
-    convert f v = Encrypted <$> convert f v
+instance FromField Password where
+    fromField f v = Encrypted <$> fromField f v
 
-instance QueryResults AuthUser where
-    convertResults (fa:fb:fc:fd:fe:ff:fg:fh:fi:fj:fk:fl:fm:fn:fo:_)
-                   (va:vb:vc:vd:ve:vf:vg:vh:vi:vj:vk:vl:vm:vn:vo:_) =
+instance FromRow AuthUser where
+    fromRow =
         AuthUser
         <$> _userId
         <*> _userLogin
@@ -146,40 +145,39 @@ instance QueryResults AuthUser where
         <*> _userRoles
         <*> _userMeta
       where
-        !_userId               = convert fa va
-        !_userLogin            = convert fb vb
-        !_userPassword         = convert fc vc
-        !_userActivatedAt      = convert fd vd
-        !_userSuspendedAt      = convert fe ve
-        !_userRememberToken    = convert ff vf
-        !_userLoginCount       = convert fg vg
-        !_userFailedLoginCount = convert fh vh
-        !_userLockedOutUntil   = convert fi vi
-        !_userCurrentLoginAt   = convert fj vj
-        !_userLastLoginAt      = convert fk vk
-        !_userCurrentLoginIp   = convert fl vl
-        !_userLastLoginIp      = convert fm vm
-        !_userCreatedAt        = convert fn vn
-        !_userUpdatedAt        = convert fo vo
-        !_userRoles            = Right []
-        !_userMeta             = Right HM.empty
-    convertResults fs vs = convertError fs vs 15
+        !_userId               = field
+        !_userLogin            = field
+        !_userPassword         = field
+        !_userActivatedAt      = field
+        !_userSuspendedAt      = field
+        !_userRememberToken    = field
+        !_userLoginCount       = field
+        !_userFailedLoginCount = field
+        !_userLockedOutUntil   = field
+        !_userCurrentLoginAt   = field
+        !_userLastLoginAt      = field
+        !_userCurrentLoginIp   = field
+        !_userLastLoginIp      = field
+        !_userCreatedAt        = field
+        !_userUpdatedAt        = field
+        !_userRoles            = pure []
+        !_userMeta             = pure HM.empty
 
 
-querySingle :: (QueryParams q, QueryResults a)
+querySingle :: (ToRow q, FromRow a)
             => Pool P.Connection -> Query -> q -> IO (Maybe a)
 querySingle pool q ps = withResource pool $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
-authExecute :: QueryParams q
+authExecute :: ToRow q
             => Pool P.Connection -> Query -> q -> IO ()
 authExecute pool q ps = do
     withResource pool $ \conn -> P.execute conn q ps
     return ()
 
-instance P.Param Password where
-    render (ClearText bs) = P.render bs
-    render (Encrypted bs) = P.render bs
+instance P.ToField Password where
+    toField (ClearText bs) = P.toField bs
+    toField (Encrypted bs) = P.toField bs
 
 
 -- | Datatype containing the names of the columns for the authentication table.
@@ -234,21 +232,21 @@ fDesc f = fst f `T.append` " " `T.append` snd f
 -- 'AuthTable'.
 colDef :: [(AuthTable -> (Text, Text), AuthUser -> P.Action)]
 colDef =
-  [ (colId              , P.render . fmap unUid . userId)
-  , (colLogin           , P.render . userLogin)
-  , (colPassword        , P.render . userPassword)
-  , (colActivatedAt     , P.render . userActivatedAt)
-  , (colSuspendedAt     , P.render . userSuspendedAt)
-  , (colRememberToken   , P.render . userRememberToken)
-  , (colLoginCount      , P.render . userLoginCount)
-  , (colFailedLoginCount, P.render . userFailedLoginCount)
-  , (colLockedOutUntil  , P.render . userLockedOutUntil)
-  , (colCurrentLoginAt  , P.render . userCurrentLoginAt)
-  , (colLastLoginAt     , P.render . userLastLoginAt)
-  , (colCurrentLoginIp  , P.render . userCurrentLoginIp)
-  , (colLastLoginIp     , P.render . userLastLoginIp)
-  , (colCreatedAt       , P.render . userCreatedAt)
-  , (colUpdatedAt       , P.render . userUpdatedAt)
+  [ (colId              , P.toField . fmap unUid . userId)
+  , (colLogin           , P.toField . userLogin)
+  , (colPassword        , P.toField . userPassword)
+  , (colActivatedAt     , P.toField . userActivatedAt)
+  , (colSuspendedAt     , P.toField . userSuspendedAt)
+  , (colRememberToken   , P.toField . userRememberToken)
+  , (colLoginCount      , P.toField . userLoginCount)
+  , (colFailedLoginCount, P.toField . userFailedLoginCount)
+  , (colLockedOutUntil  , P.toField . userLockedOutUntil)
+  , (colCurrentLoginAt  , P.toField . userCurrentLoginAt)
+  , (colLastLoginAt     , P.toField . userLastLoginAt)
+  , (colCurrentLoginIp  , P.toField . userCurrentLoginIp)
+  , (colLastLoginIp     , P.toField . userLastLoginIp)
+  , (colCreatedAt       , P.toField . userCreatedAt)
+  , (colUpdatedAt       , P.toField . userUpdatedAt)
   ]
 
 saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
@@ -273,7 +271,7 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
                   , fst (colId at)
                   , " = ?"
                   ]
-        , params ++ [P.render $ unUid uid])
+        , params ++ [P.toField $ unUid uid])
     cols = map (fst . ($at) . fst) $ tail colDef
     vals = map (const "?") cols
     params = map (($u) . snd) $ tail colDef
