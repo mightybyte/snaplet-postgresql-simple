@@ -57,7 +57,6 @@ for the "Snap.Snaplet.Auth.Backends.PostgresqlSimple" module.
 module Snap.Snaplet.PostgresqlSimple (
   -- * The Snaplet
     Postgres(..)
-  , pgPool
   , HasPostgres(..)
   , pgsInit
 
