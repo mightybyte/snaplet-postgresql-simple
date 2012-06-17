@@ -30,6 +30,8 @@ Library
   exposed-modules:
     Snap.Snaplet.PostgresqlSimple
     Snap.Snaplet.Auth.Backends.PostgresqlSimple
+
+  other-modules:
     Paths_snaplet_postgresql_simple
 
   build-depends:
