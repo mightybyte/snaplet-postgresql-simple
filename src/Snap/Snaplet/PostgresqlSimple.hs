@@ -6,8 +6,9 @@
 
 This snaplet makes it simple to use a PostgreSQL database from your Snap
 application and is based on the excellent postgresql-simple library
-(<http://hackage.haskell.org/package/postgresql-simple>) by Bryan O'Sullivan.
-Now, adding a database to your web app takes just two simple steps.
+(<http://hackage.haskell.org/package/postgresql-simple>) by Leon Smith
+(adapted from Bryan O'Sullivan's mysql-simple).  Now, adding a database
+to your web app takes just two simple steps.
 
 First, include this snaplet in your application's state.
 
