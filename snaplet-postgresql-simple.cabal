@@ -12,7 +12,7 @@ maintainer:     mightybyte@gmail.com
 build-type:     Simple
 cabal-version:  >= 1.6
 homepage:       https://github.com/mightybyte/snaplet-postgresql-simple
-category:       Web
+category:       Web, Snap
 
 extra-source-files:  LICENSE
 
