@@ -97,6 +97,7 @@ module Snap.Snaplet.PostgresqlSimple (
   , P.TransactionMode(..)
   , P.IsolationLevel(..)
   , P.ReadWriteMode(..)
+  , (P.:.)(..)
   , ToRow(..)
   , FromRow(..)
 
@@ -104,6 +105,7 @@ module Snap.Snaplet.PostgresqlSimple (
   , P.defaultTransactionMode
   , P.defaultIsolationLevel
   , P.defaultReadWriteMode
+  , field
 
   ) where
 
