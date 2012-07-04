@@ -45,10 +45,10 @@ With this code, our postHandler example no longer requires the 'with' function:
 >     ...
 
 The first time you run an application with the postgresql-simple snaplet, a
-configuration file @snaplet.cfg@ in the @snaplets/postgresql-simple@ directory
-underneath your project root.  It specifies how to connect to your PostgreSQL
-server and what user, password, and database to use.  Edit this file and modify
-the values appropriately and you'll be off and running.
+configuration file @devel.cfg@ is created in the @snaplets/postgresql-simple@
+directory underneath your project root.  It specifies how to connect to your
+PostgreSQL server and what user, password, and database to use.  Edit this
+file and modify the values appropriately and you'll be off and running.
 
 If you want to have out-of-the-box authentication, look at the documentation
 for the "Snap.Snaplet.Auth.Backends.PostgresqlSimple" module.
