@@ -41,7 +41,7 @@ Library
     configurator               >= 0.2     && < 0.3,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 3,
-    postgresql-simple          >= 0.1     && < 0.2,
+    postgresql-simple          >= 0.1     && < 0.3,
     resource-pool-catchio      >= 0.2     && < 0.3,
     snap                       >= 0.9     && < 0.10,
     text                       >= 0.11    && < 0.12,
