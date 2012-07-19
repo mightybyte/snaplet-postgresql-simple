@@ -7,7 +7,7 @@
 This snaplet makes it simple to use a PostgreSQL database from your Snap
 application and is based on the excellent postgresql-simple library
 (<http://hackage.haskell.org/package/postgresql-simple>) by Leon Smith
-(adapted from Bryan O'Sullivan's mysql-simple).  Now, adding a database
+(adapted from Bryan O\'Sullivan\'s mysql-simple).  Now, adding a database
 to your web app takes just two simple steps.
 
 First, include this snaplet in your application's state.
@@ -115,6 +115,7 @@ import           Control.Applicative
 import           Control.Monad.CatchIO hiding (Handler)
 import           Control.Monad.IO.Class
 import           Control.Monad.State
+import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Writer
 import           Data.ByteString (ByteString)
 import qualified Data.Configurator as C
@@ -125,7 +126,7 @@ import           Data.Pool
 import           Database.PostgreSQL.Simple.ToRow
 import           Database.PostgreSQL.Simple.FromRow
 import qualified Database.PostgreSQL.Simple as P
-import           Snap.Snaplet
+import           Snap
 import           Paths_snaplet_postgresql_simple
 
 
@@ -141,7 +142,10 @@ data Postgres = Postgres
 
 ------------------------------------------------------------------------------
 -- | Instantiate this typeclass on 'Handler b YourAppState' so this snaplet
--- can find the connection source.
+-- can find the connection source.  If you need to have multiple instances of
+-- the postgres snaplet in your application, then don't provide this instance
+-- and leverage the default instance by using \"@with dbLens@\" in front of calls
+-- to snaplet-postgresql-simple functions.
 class (MonadCatchIO m) => HasPostgres m where
     getPostgresState :: m Postgres
 
@@ -152,12 +156,26 @@ instance HasPostgres (Handler b Postgres) where
     getPostgresState = get
 
 
+------------------------------------------------------------------------------
+-- | A convenience instance to make it easier to use this snaplet in monads
+-- other than Handler.  It allows you to get database access in initializers
+-- like this:
+--
+-- > d <- nestSnaplet "db" db pgsInit
+-- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
+instance (MonadCatchIO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
+    getPostgresState = asks (getL snapletValue)
+
+
+------------------------------------------------------------------------------
+-- | Convenience function allowing easy collection of config file errors.
 logErr :: MonadIO m
        => t -> IO (Maybe a) -> WriterT [t] m (Maybe a)
 logErr err m = do
     res <- liftIO m
     when (isNothing res) (tell [err])
     return res
+
 
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet
@@ -326,8 +344,8 @@ withTransaction = withTransactionMode P.defaultTransactionMode
 
 withTransactionLevel :: (HasPostgres m, MonadCatchIO m)
                      => P.IsolationLevel -> m a -> m a
-withTransactionLevel lvl
-    = withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
+withTransactionLevel lvl =
+    withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
 
 
 withTransactionMode :: (HasPostgres m, MonadCatchIO m)

@@ -8,6 +8,7 @@ module Main where
 ------------------------------------------------------------------------------
 import           Control.Applicative
 import           Control.Monad.Trans
+import           Control.Monad.Trans.Reader
 import           Control.Monad.State
 import           Data.ByteString (ByteString)
 import           Data.Lens.Template
