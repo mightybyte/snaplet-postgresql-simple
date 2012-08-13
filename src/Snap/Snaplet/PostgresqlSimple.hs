@@ -157,14 +157,20 @@ instance HasPostgres (Handler b Postgres) where
 
 
 ------------------------------------------------------------------------------
--- | A convenience instance to make it easier to use this snaplet in monads
--- other than Handler.  It allows you to get database access in initializers
--- like this:
+-- | A convenience instance to make it easier to use this snaplet in the
+-- Initializer monad like this:
 --
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
 instance (MonadCatchIO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
     getPostgresState = asks (getL snapletValue)
+
+
+------------------------------------------------------------------------------
+-- | A convenience instance to make it easier to use functions written for
+-- this snaplet in non-snaplet contexts.
+instance (MonadCatchIO m) => HasPostgres (ReaderT Postgres m) where
+    getPostgresState = ask
 
 
 ------------------------------------------------------------------------------
