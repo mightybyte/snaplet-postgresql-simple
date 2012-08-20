@@ -73,6 +73,7 @@ module Snap.Snaplet.PostgresqlSimple (
   , execute
   , execute_
   , executeMany
+  , returning
   , begin
   , beginLevel
   , beginMode
@@ -231,6 +232,11 @@ query q params = withPG (\c -> P.query c q params)
 query_ :: (HasPostgres m, FromRow r) => P.Query -> m [r]
 query_ q = withPG (\c -> P.query_ c q)
 
+------------------------------------------------------------------------------
+-- | See 'P.returning'
+returning :: (HasPostgres m, ToRow q, FromRow r)
+      => P.Query -> [q] -> m [r]
+returning q params = withPG (\c -> P.returning c q params)
 
 ------------------------------------------------------------------------------
 -- | 
