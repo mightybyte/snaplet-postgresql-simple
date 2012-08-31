@@ -101,11 +101,12 @@ createTableIfMissing PostgresAuthManager{..} = do
     withResource pamConnPool $ \conn -> do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
-          `T.append` tblName pamTable `T.append` "'"
+          `T.append` schemaless (tblName pamTable) `T.append` "'"
         when (null (res :: [Only T.Text])) $
           P.execute_ conn (Query $ T.encodeUtf8 q) >> return ()
     return ()
   where
+    schemaless = T.reverse . T.takeWhile (/='.') . T.reverse
     q = T.concat
           [ "CREATE TABLE "
           , tblName pamTable
