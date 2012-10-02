@@ -35,12 +35,14 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
+import           Prelude hiding (catch)
+import           Control.Error
+import           Control.Exception (SomeException, catch)
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as T
-import           Data.Maybe
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
 import qualified Database.PostgreSQL.Simple.ToField as P
@@ -259,7 +261,8 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
                              , T.intercalate "," cols
                              , ") VALUES ("
                              , T.intercalate "," vals
-                             , ")"
+                             , ") RETURNING "
+                             , T.intercalate "," (map (fst . ($at) . fst) $ tail colDef)
                              ]
                    , params)
     qval f  = fst (f at) `T.append` " = ?"
@@ -270,7 +273,8 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
                   , T.intercalate "," (map (qval . fst) $ tail colDef)
                   , " WHERE "
                   , fst (colId at)
-                  , " = ?"
+                  , " = ? RETURNING "
+                  , T.intercalate "," (map (fst . ($at) . fst) $ tail colDef)
                   ]
         , params ++ [P.toField $ unUid uid])
     cols = map (fst . ($at) . fst) $ tail colDef
@@ -278,25 +282,20 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
     params = map (($u) . snd) $ tail colDef
             
 
+onFailure :: Monad m => SomeException -> m (Either AuthFailure a)
+onFailure e = return $ Left $ AuthError $ show e
+
 ------------------------------------------------------------------------------
 -- | 
 instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 qstr
-        withResource pamConnPool $ \conn -> do
-            P.begin conn
-            P.execute conn q params
-            let q2 = Query $ T.encodeUtf8 $ T.concat
-                     [ "select * from "
-                     , tblName pamTable
-                     , " where "
-                     , fst (colLogin pamTable)
-                     , " = ?"
-                     ]
-            res <- P.query conn q2 [userLogin]
-            P.commit conn
-            return $ fromMaybe u $ listToMaybe res
+        let action = withResource pamConnPool $ \conn -> do
+                res <- P.query conn q params
+                return $ Right $ fromMaybe u $ listToMaybe res
+        catch action onFailure
+            
 
     lookupByUserId PostgresAuthManager{..} uid = do
         let q = Query $ T.encodeUtf8 $ T.concat
