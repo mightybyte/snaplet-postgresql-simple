@@ -262,7 +262,7 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
                              , ") VALUES ("
                              , T.intercalate "," vals
                              , ") RETURNING "
-                             , T.intercalate "," (map (fst . ($at) . fst) $ tail colDef)
+                             , T.intercalate "," (map (fst . ($at) . fst) colDef)
                              ]
                    , params)
     qval f  = fst (f at) `T.append` " = ?"
@@ -274,7 +274,7 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
                   , " WHERE "
                   , fst (colId at)
                   , " = ? RETURNING "
-                  , T.intercalate "," (map (fst . ($at) . fst) $ tail colDef)
+                  , T.intercalate "," (map (fst . ($at) . fst) colDef)
                   ]
         , params ++ [P.toField $ unUid uid])
     cols = map (fst . ($at) . fst) $ tail colDef
