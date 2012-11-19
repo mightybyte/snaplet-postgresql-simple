@@ -164,7 +164,7 @@ instance HasPostgres (Handler b Postgres) where
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
 instance (MonadCatchIO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
-    getPostgresState = asks (getL snapletValue)
+    getPostgresState = asks (\pgsnaplet -> pgsnaplet^#snapletValue)
 
 
 ------------------------------------------------------------------------------

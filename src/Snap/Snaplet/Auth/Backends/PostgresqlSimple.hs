@@ -67,7 +67,7 @@ data PostgresAuthManager = PostgresAuthManager
 -- | Initializer for the postgres backend to the auth snaplet.
 --
 initPostgresAuth
-  :: Lens b (Snaplet SessionManager)  -- ^ Lens to the session snaplet
+  :: SnapletLens b SessionManager  -- ^ Lens to the session snaplet
   -> Snaplet Postgres  -- ^ The postgres snaplet
   -> SnapletInit b (AuthManager b)
 initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
@@ -77,7 +77,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     key <- liftIO $ getKey (asSiteKey authSettings)
     let tableDesc = defAuthTable { tblName = authTable }
     let manager = PostgresAuthManager tableDesc $
-                                      pgPool $ getL snapletValue db
+                                      pgPool $ db^#snapletValue
     liftIO $ createTableIfMissing manager
     rng <- liftIO mkRNG
     return $ AuthManager
