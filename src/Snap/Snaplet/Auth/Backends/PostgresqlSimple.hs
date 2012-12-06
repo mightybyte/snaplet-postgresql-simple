@@ -132,6 +132,7 @@ instance FromRow AuthUser where
         AuthUser
         <$> _userId
         <*> _userLogin
+        <*> _userEmail
         <*> _userPassword
         <*> _userActivatedAt
         <*> _userSuspendedAt
@@ -145,11 +146,14 @@ instance FromRow AuthUser where
         <*> _userLastLoginIp
         <*> _userCreatedAt
         <*> _userUpdatedAt
+        <*> _userResetToken
+        <*> _userResetRequestedAt
         <*> _userRoles
         <*> _userMeta
       where
         !_userId               = field
         !_userLogin            = field
+        !_userEmail            = field
         !_userPassword         = field
         !_userActivatedAt      = field
         !_userSuspendedAt      = field
@@ -163,6 +167,8 @@ instance FromRow AuthUser where
         !_userLastLoginIp      = field
         !_userCreatedAt        = field
         !_userUpdatedAt        = field
+        !_userResetToken       = field
+        !_userResetRequestedAt = field
         !_userRoles            = pure []
         !_userMeta             = pure HM.empty
 
@@ -189,6 +195,7 @@ data AuthTable
   {  tblName             :: Text
   ,  colId               :: (Text, Text)
   ,  colLogin            :: (Text, Text)
+  ,  colEmail            :: (Text, Text)
   ,  colPassword         :: (Text, Text)
   ,  colActivatedAt      :: (Text, Text)
   ,  colSuspendedAt      :: (Text, Text)
@@ -202,6 +209,8 @@ data AuthTable
   ,  colLastLoginIp      :: (Text, Text)
   ,  colCreatedAt        :: (Text, Text)
   ,  colUpdatedAt        :: (Text, Text)
+  ,  colResetToken       :: (Text, Text)
+  ,  colResetRequestedAt :: (Text, Text)
   ,  rolesTable          :: Text
   }
 
@@ -212,6 +221,7 @@ defAuthTable
   {  tblName             = "snap_auth_user"
   ,  colId               = ("uid", "SERIAL PRIMARY KEY")
   ,  colLogin            = ("login", "text UNIQUE NOT NULL")
+  ,  colEmail            = ("email", "text NOT NULL")
   ,  colPassword         = ("password", "text")
   ,  colActivatedAt      = ("activated_at", "timestamptz")
   ,  colSuspendedAt      = ("suspended_at", "timestamptz")
@@ -225,6 +235,8 @@ defAuthTable
   ,  colLastLoginIp      = ("last_login_ip", "text")
   ,  colCreatedAt        = ("created_at", "timestamptz")
   ,  colUpdatedAt        = ("updated_at", "timestamptz")
+  ,  colResetToken       = ("reset_token", "text")
+  ,  colResetRequestedAt = ("reset_requested_at", "timestamptz")
   ,  rolesTable          = "user_roles"
   }
 
@@ -237,6 +249,7 @@ colDef :: [(AuthTable -> (Text, Text), AuthUser -> P.Action)]
 colDef =
   [ (colId              , P.toField . fmap unUid . userId)
   , (colLogin           , P.toField . userLogin)
+  , (colEmail           , P.toField . userEmail)
   , (colPassword        , P.toField . userPassword)
   , (colActivatedAt     , P.toField . userActivatedAt)
   , (colSuspendedAt     , P.toField . userSuspendedAt)
@@ -250,6 +263,8 @@ colDef =
   , (colLastLoginIp     , P.toField . userLastLoginIp)
   , (colCreatedAt       , P.toField . userCreatedAt)
   , (colUpdatedAt       , P.toField . userUpdatedAt)
+  , (colResetToken      , P.toField . userResetToken)
+  , (colResetRequestedAt, P.toField . userResetRequestedAt)
   ]
 
 saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
