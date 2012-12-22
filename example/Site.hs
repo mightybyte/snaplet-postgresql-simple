@@ -11,7 +11,7 @@ import           Control.Monad.Trans
 import           Control.Monad.Trans.Reader
 import           Control.Monad.State
 import           Data.ByteString (ByteString)
-import           Data.Lens.Template
+import           Control.Lens
 import           Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -25,7 +25,7 @@ import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
-import           Text.Templating.Heist
+import           Heist
 import           Text.XmlHtml hiding (render)
 
 
@@ -36,7 +36,7 @@ data App = App
     , _auth :: Snaplet (AuthManager App)
     }
 
-makeLens ''App
+makeLenses ''App
 
 instance HasPostgres (Handler b App) where
     getPostgresState = with db get
