@@ -110,10 +110,9 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
-import           Prelude hiding (catch)
-
 import           Control.Applicative
-import           Control.Monad.CatchIO hiding (Handler)
+import           Control.Monad.CatchIO (MonadCatchIO)
+import qualified Control.Monad.CatchIO as CIO
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Trans.Reader
@@ -364,7 +363,7 @@ withTransactionMode :: (HasPostgres m, MonadCatchIO m)
                     => P.TransactionMode -> m a -> m a
 withTransactionMode mode act = do
     beginMode mode
-    r <- act `onException` rollback
+    r <- act `CIO.onException` rollback
     commit
     return r
 
