@@ -35,7 +35,7 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
-import           Prelude
+import           Prelude hiding (catch)
 import           Control.Error
 import qualified Control.Exception as E
 import qualified Data.Configurator as C
