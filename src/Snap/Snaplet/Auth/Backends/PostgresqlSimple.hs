@@ -37,7 +37,7 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
 ------------------------------------------------------------------------------
 import           Prelude
 import           Control.Error
-import           Control.Exception (SomeException, catch)
+import qualified Control.Exception as E
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
@@ -297,7 +297,7 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
     params = map (($u) . snd) $ tail colDef
             
 
-onFailure :: Monad m => SomeException -> m (Either AuthFailure a)
+onFailure :: Monad m => E.SomeException -> m (Either AuthFailure a)
 onFailure e = return $ Left $ AuthError $ show e
 
 ------------------------------------------------------------------------------
@@ -309,7 +309,7 @@ instance IAuthBackend PostgresAuthManager where
         let action = withResource pamConnPool $ \conn -> do
                 res <- P.query conn q params
                 return $ Right $ fromMaybe u $ listToMaybe res
-        catch action onFailure
+        E.catch action onFailure
             
 
     lookupByUserId PostgresAuthManager{..} uid = do
