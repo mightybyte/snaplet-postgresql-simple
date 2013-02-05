@@ -1,5 +1,5 @@
 name:           snaplet-postgresql-simple
-version:        0.3.0.1
+version:        0.3.0.2
 synopsis:       postgresql-simple snaplet for the Snap Framework
 description:    This snaplet contains support for using the Postgresql
                 database with a Snap Framework application via the
@@ -44,7 +44,7 @@ Library
     mtl                        >= 2       && < 3,
     postgresql-simple          >= 0.2     && < 0.3,
     resource-pool-catchio      >= 0.2     && < 0.3,
-    snap                       >= 0.10    && < 0.11,
+    snap                       >= 0.10    && < 0.12,
     text                       >= 0.11    && < 0.12,
     transformers               >= 0.2     && < 0.4,
     unordered-containers       >= 0.2     && < 0.3
