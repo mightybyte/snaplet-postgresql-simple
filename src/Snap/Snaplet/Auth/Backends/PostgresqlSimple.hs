@@ -314,33 +314,36 @@ instance IAuthBackend PostgresAuthManager where
 
     lookupByUserId PostgresAuthManager{..} uid = do
         let q = Query $ T.encodeUtf8 $ T.concat
-                [ "select * from "
+                [ "select ", T.intercalate "," cols, " from "
                 , tblName pamTable
                 , " where "
                 , fst (colId pamTable)
                 , " = ?"
                 ]
         querySingle pamConnPool q [unUid uid]
+      where cols = map (fst . ($pamTable) . fst) colDef
 
     lookupByLogin PostgresAuthManager{..} login = do
         let q = Query $ T.encodeUtf8 $ T.concat
-                [ "select * from "
+                [ "select ", T.intercalate "," cols, " from "
                 , tblName pamTable
                 , " where "
                 , fst (colLogin pamTable)
                 , " = ?"
                 ]
         querySingle pamConnPool q [login]
+      where cols = map (fst . ($pamTable) . fst) colDef
 
     lookupByRememberToken PostgresAuthManager{..} token = do
         let q = Query $ T.encodeUtf8 $ T.concat
-                [ "select * from "
+                [ "select ", T.intercalate "," cols, " from "
                 , tblName pamTable
                 , " where "
                 , fst (colRememberToken pamTable)
                 , " = ?"
                 ]
         querySingle pamConnPool q [token]
+      where cols = map (fst . ($pamTable) . fst) colDef
 
     destroy PostgresAuthManager{..} AuthUser{..} = do
         let q = Query $ T.encodeUtf8 $ T.concat
