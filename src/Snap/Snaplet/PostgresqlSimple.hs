@@ -126,6 +126,7 @@ import           Data.Pool
 import           Database.PostgreSQL.Simple.ToRow
 import           Database.PostgreSQL.Simple.FromRow
 import qualified Database.PostgreSQL.Simple as P
+import qualified Database.PostgreSQL.Simple.Transaction as P
 import           Snap
 import           Paths_snaplet_postgresql_simple
 
