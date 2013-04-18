@@ -88,7 +88,6 @@ module Snap.Snaplet.PostgresqlSimple (
   , formatQuery
 
   -- Re-exported from postgresql-simple
-  , P.ConnectInfo(..)
   , P.Query
   , P.In(..)
   , P.Binary(..)
