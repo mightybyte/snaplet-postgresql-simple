@@ -45,7 +45,7 @@ Library
     postgresql-simple          >= 0.3     && < 0.4,
     resource-pool-catchio      >= 0.2     && < 0.3,
     snap                       >= 0.10    && < 0.12,
-    text                       >= 0.11    && < 0.12,
+    text                       >= 0.11.2  && < 0.12,
     transformers               >= 0.2     && < 0.4,
     unordered-containers       >= 0.2     && < 0.3
 
