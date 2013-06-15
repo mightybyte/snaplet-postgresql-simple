@@ -62,6 +62,7 @@ module Snap.Snaplet.PostgresqlSimple (
     Postgres(..)
   , HasPostgres(..)
   , pgsInit
+  , withPG
 
   -- * Wrappers and re-exports
   , query
