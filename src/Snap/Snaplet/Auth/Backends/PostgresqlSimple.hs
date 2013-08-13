@@ -8,7 +8,7 @@ This module allows you to use the auth snaplet with your user database stored
 in a PostgreSQL database.  When you run your application with this snaplet, a
 config file will be copied into the the @snaplets/postgresql-auth@ directory.
 This file contains all of the configurable options for the snaplet and allows
-you to change them without recompiling your application.  
+you to change them without recompiling your application.
 
 To use this snaplet in your application enable the session, postgres, and auth
 snaplets as follows:
@@ -111,7 +111,7 @@ createTableIfMissing PostgresAuthManager{..} = do
     schemaless = T.reverse . T.takeWhile (/='.') . T.reverse
     q = T.concat
           [ "CREATE TABLE "
-          , tblName pamTable
+          , '\"' `T.cons` (tblName pamTable) `T.append` "\""
           , " ("
           , T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
           , ")"
@@ -295,13 +295,13 @@ saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
     cols = map (fst . ($at) . fst) $ tail colDef
     vals = map (const "?") cols
     params = map (($u) . snd) $ tail colDef
-            
+
 
 onFailure :: Monad m => E.SomeException -> m (Either AuthFailure a)
 onFailure e = return $ Left $ AuthError $ show e
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
@@ -310,7 +310,7 @@ instance IAuthBackend PostgresAuthManager where
                 res <- P.query conn q params
                 return $ Right $ fromMaybe u $ listToMaybe res
         E.catch action onFailure
-            
+
 
     lookupByUserId PostgresAuthManager{..} uid = do
         let q = Query $ T.encodeUtf8 $ T.concat
