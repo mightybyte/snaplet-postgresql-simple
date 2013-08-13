@@ -110,9 +110,9 @@ createTableIfMissing PostgresAuthManager{..} = do
   where
     schemaless = T.reverse . T.takeWhile (/='.') . T.reverse
     q = T.concat
-          [ "CREATE TABLE "
-          , '\"' `T.cons` (tblName pamTable) `T.append` "\""
-          , " ("
+          [ "CREATE TABLE \""
+          , tblName pamTable
+          , "\" ("
           , T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
           , ")"
           ]
