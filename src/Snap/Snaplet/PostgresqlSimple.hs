@@ -62,6 +62,8 @@ module Snap.Snaplet.PostgresqlSimple (
     Postgres(..)
   , HasPostgres(..)
   , pgsInit
+  , pgsInit'
+  , getConnectionString 
 
   -- * Wrappers and re-exports
   , query
@@ -265,12 +267,26 @@ getConnectionString config = do
                      _    -> TB.singleton c
 
 
+description = "PostgreSQL abstraction"
+datadir = Just $ liftM (++"/resources/db") getDataDir
+
 
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet
 pgsInit :: SnapletInit b Postgres
 pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
     config <- getSnapletUserConfig
+    initHelper config
+
+
+------------------------------------------------------------------------------
+-- | Initialize the snaplet
+pgsInit' :: C.Config -> SnapletInit b Postgres
+pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
+    initHelper config
+
+
+initHelper config = do
     connstr <- liftIO $ getConnectionString config
     stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
     idle <- liftIO $ C.lookupDefault 5 config "idleTime"
@@ -278,9 +294,6 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
     pool <- liftIO $ createPool (P.connectPostgreSQL connstr) P.close stripes
                                 (realToFrac (idle :: Double)) resources
     return $ Postgres pool
-  where
-    description = "PostgreSQL abstraction"
-    datadir = Just $ liftM (++"/resources/db") getDataDir
 
 
 ------------------------------------------------------------------------------
