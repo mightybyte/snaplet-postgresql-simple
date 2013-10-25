@@ -267,7 +267,11 @@ getConnectionString config = do
                      _    -> TB.singleton c
 
 
+description :: T.Text
 description = "PostgreSQL abstraction"
+
+
+datadir :: Maybe (IO FilePath)
 datadir = Just $ liftM (++"/resources/db") getDataDir
 
 
@@ -286,6 +290,7 @@ pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
     initHelper config
 
 
+initHelper :: MonadIO m => C.Config -> m Postgres
 initHelper config = do
     connstr <- liftIO $ getConnectionString config
     stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
