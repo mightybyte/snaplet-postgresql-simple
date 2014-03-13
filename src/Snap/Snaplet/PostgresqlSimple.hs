@@ -63,7 +63,8 @@ module Snap.Snaplet.PostgresqlSimple (
   , HasPostgres(..)
   , pgsInit
   , pgsInit'
-  , getConnectionString 
+  , pgsInit''
+  , getConnectionString
 
   -- * Wrappers and re-exports
   , query
@@ -139,6 +140,9 @@ import qualified Database.PostgreSQL.Simple as P
 import qualified Database.PostgreSQL.Simple.Transaction as P
 import           Snap
 import           Paths_snaplet_postgresql_simple
+import           System.Posix.Env (getEnvDefault)
+import qualified Data.ByteString.Char8 as BC
+
 
 -- This is actually more portable than using <>
 (++) :: Monoid a => a -> a -> a
@@ -282,13 +286,18 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
     config <- getSnapletUserConfig
     initHelper config
 
-
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet
 pgsInit' :: C.Config -> SnapletInit b Postgres
 pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
     initHelper config
 
+-- | Initialize the snaplet with a database URL taken from an
+-- environment variable instead of a Config record.
+pgsInit'' :: String -- ^ The environment variable containing the database URL
+          -> SnapletInit b Postgres
+pgsInit'' envVar = makeSnaplet "postgresql-simple" "PostgreSQL abstraction"
+                   Nothing $ initHelper' envVar
 
 initHelper :: MonadIO m => C.Config -> m Postgres
 initHelper config = do
@@ -298,6 +307,13 @@ initHelper config = do
     resources <- liftIO $ C.lookupDefault 20 config "maxResourcesPerStripe"
     pool <- liftIO $ createPool (P.connectPostgreSQL connstr) P.close stripes
                                 (realToFrac (idle :: Double)) resources
+    return $ Postgres pool
+
+initHelper' :: MonadIO m => String -> m Postgres
+initHelper' envVar = do
+    constr <- liftIO $ getEnvDefault envVar ""
+    pool <- liftIO $ createPool (P.connectPostgreSQL $ BC.pack constr) P.close 1
+                                (realToFrac (5 :: Double)) 20
     return $ Postgres pool
 
 
