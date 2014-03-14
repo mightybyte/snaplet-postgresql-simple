@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -61,6 +62,9 @@ module Snap.Snaplet.PostgresqlSimple (
   -- * The Snaplet
     Postgres(..)
   , HasPostgres(..)
+  , PGSConfig(..)
+  , pgsDefaultConfig
+  , mkPGSConfig 
   , pgsInit
   , pgsInit'
   , getConnectionString 
@@ -279,25 +283,64 @@ datadir = Just $ liftM (++"/resources/db") getDataDir
 -- | Initialize the snaplet
 pgsInit :: SnapletInit b Postgres
 pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
-    config <- getSnapletUserConfig
+    config <- mkPGSConfig =<< getSnapletUserConfig
     initHelper config
 
 
 ------------------------------------------------------------------------------
--- | Initialize the snaplet
-pgsInit' :: C.Config -> SnapletInit b Postgres
+-- | Initialize the snaplet using a specific configuration.
+pgsInit' :: PGSConfig -> SnapletInit b Postgres
 pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
     initHelper config
 
 
-initHelper :: MonadIO m => C.Config -> m Postgres
-initHelper config = do
+------------------------------------------------------------------------------
+-- | Data type holding all the snaplet's config information.
+data PGSConfig = PGSConfig
+    { pgsConnStr    :: ByteString
+      -- ^ A libpq connection string.
+    , pgsNumStripes :: Int
+      -- ^ The number of distinct sub-pools to maintain. The smallest
+      -- acceptable value is 1.
+    , pgsIdleTime   :: Double
+      -- ^ Amount of time for which an unused resource is kept open. The
+      -- smallest acceptable value is 0.5 seconds.
+    , pgsResources  :: Int
+      -- ^ Maximum number of resources to keep open per stripe. The smallest
+      -- acceptable value is 1.
+    }
+
+
+------------------------------------------------------------------------------
+-- | Returns a config object with default values and the specified connection
+-- string.
+pgsDefaultConfig :: ByteString
+                   -- ^ A connection string such as \"host=localhost
+                   -- port=5432 dbname=mydb\"
+                 -> PGSConfig
+pgsDefaultConfig connstr = PGSConfig connstr 1 5 20
+
+
+
+------------------------------------------------------------------------------
+-- | Builds a PGSConfig object from a configurator Config object.  This
+-- function uses getConnectionString to construct the connection string.  The
+-- rest of the PGSConfig fields are obtained from \"numStripes\",
+-- \"idleTime\", and \"maxResourcesPerStripe\".
+mkPGSConfig :: MonadIO m => C.Config -> m PGSConfig
+mkPGSConfig config = do
     connstr <- liftIO $ getConnectionString config
     stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
     idle <- liftIO $ C.lookupDefault 5 config "idleTime"
     resources <- liftIO $ C.lookupDefault 20 config "maxResourcesPerStripe"
-    pool <- liftIO $ createPool (P.connectPostgreSQL connstr) P.close stripes
-                                (realToFrac (idle :: Double)) resources
+    return $ PGSConfig connstr stripes idle resources
+
+
+initHelper :: MonadIO m => PGSConfig -> m Postgres
+initHelper PGSConfig{..} = do
+    pool <- liftIO $ createPool (P.connectPostgreSQL pgsConnStr) P.close
+                                pgsNumStripes (realToFrac pgsIdleTime)
+                                pgsResources
     return $ Postgres pool
 
 

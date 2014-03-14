@@ -1,5 +1,5 @@
 name:           snaplet-postgresql-simple
-version:        0.4.1.1
+version:        0.5
 synopsis:       postgresql-simple snaplet for the Snap Framework
 description:    This snaplet contains support for using the Postgresql
                 database with a Snap Framework application via the
