@@ -251,9 +251,12 @@ getConnectionString config = do
 
     showBool x = TB.decimal (fromEnum x)
 
-    showNum  x = TB.formatRealFloat TB.Fixed Nothing
-                   ( fromIntegral (numerator   x)
-                   / fromIntegral (denominator x) :: Double )
+    nd ratio = (numerator ratio, denominator ratio)
+
+    showNum (nd -> (n,1)) = TB.decimal n
+    showNum x             = TB.formatRealFloat TB.Fixed Nothing
+                             ( fromIntegral (numerator   x)
+                             / fromIntegral (denominator x) :: Double )
 
     showText x = qt ++ loop x
       where
