@@ -43,7 +43,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as T
-import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
 import qualified Database.PostgreSQL.Simple.ToField as P
 import           Database.PostgreSQL.Simple.FromField
@@ -55,11 +54,12 @@ import           Snap.Snaplet.PostgresqlSimple
 import           Snap.Snaplet.Session
 import           Web.ClientSession
 import           Paths_snaplet_postgresql_simple
+------------------------------------------------------------------------------
 
 
 data PostgresAuthManager = PostgresAuthManager
     { pamTable    :: AuthTable
-    , pamConnPool :: Pool P.Connection
+    , pamConn     :: Postgres
     }
 
 
@@ -76,8 +76,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     authSettings <- authSettingsFromConfig
     key <- liftIO $ getKey (asSiteKey authSettings)
     let tableDesc = defAuthTable { tblName = authTable }
-    let manager = PostgresAuthManager tableDesc $
-                                      pgPool $ db ^# snapletValue
+    let manager = PostgresAuthManager tableDesc $ db ^# snapletValue
     liftIO $ createTableIfMissing manager
     rng <- liftIO mkRNG
     return $ AuthManager
@@ -100,7 +99,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
 -- | Create the user table if it doesn't exist.
 createTableIfMissing :: PostgresAuthManager -> IO ()
 createTableIfMissing PostgresAuthManager{..} = do
-    withResource pamConnPool $ \conn -> do
+    withPG' pamConn $ \conn -> do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
           `T.append` schemaless (tblName pamTable) `T.append` "'"
@@ -174,14 +173,14 @@ instance FromRow AuthUser where
 
 
 querySingle :: (ToRow q, FromRow a)
-            => Pool P.Connection -> Query -> q -> IO (Maybe a)
-querySingle pool q ps = withResource pool $ \conn -> return . listToMaybe =<<
+            => Postgres -> Query -> q -> IO (Maybe a)
+querySingle pc q ps = withPG' pc $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
 authExecute :: ToRow q
-            => Pool P.Connection -> Query -> q -> IO ()
-authExecute pool q ps = do
-    withResource pool $ \conn -> P.execute conn q ps
+            => Postgres -> Query -> q -> IO ()
+authExecute pc q ps = do
+    withPG' pc $ \conn -> P.execute conn q ps
     return ()
 
 instance P.ToField Password where
@@ -306,7 +305,7 @@ instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 qstr
-        let action = withResource pamConnPool $ \conn -> do
+        let action = withPG' pamConn $ \conn -> do
                 res <- P.query conn q params
                 return $ Right $ fromMaybe u $ listToMaybe res
         E.catch action onFailure
@@ -320,7 +319,7 @@ instance IAuthBackend PostgresAuthManager where
                 , fst (colId pamTable)
                 , " = ?"
                 ]
-        querySingle pamConnPool q [unUid uid]
+        querySingle pamConn q [unUid uid]
       where cols = map (fst . ($pamTable) . fst) colDef
 
     lookupByLogin PostgresAuthManager{..} login = do
@@ -331,7 +330,7 @@ instance IAuthBackend PostgresAuthManager where
                 , fst (colLogin pamTable)
                 , " = ?"
                 ]
-        querySingle pamConnPool q [login]
+        querySingle pamConn q [login]
       where cols = map (fst . ($pamTable) . fst) colDef
 
     lookupByRememberToken PostgresAuthManager{..} token = do
@@ -342,7 +341,7 @@ instance IAuthBackend PostgresAuthManager where
                 , fst (colRememberToken pamTable)
                 , " = ?"
                 ]
-        querySingle pamConnPool q [token]
+        querySingle pamConn q [token]
       where cols = map (fst . ($pamTable) . fst) colDef
 
     destroy PostgresAuthManager{..} AuthUser{..} = do
@@ -353,5 +352,5 @@ instance IAuthBackend PostgresAuthManager where
                 , fst (colLogin pamTable)
                 , " = ?"
                 ]
-        authExecute pamConnPool q [userLogin]
+        authExecute pamConn q [userLogin]
 

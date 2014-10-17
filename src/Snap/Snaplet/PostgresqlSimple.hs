@@ -68,6 +68,8 @@ module Snap.Snaplet.PostgresqlSimple (
   , pgsInit
   , pgsInit'
   , getConnectionString 
+  , withPG
+  , withPG'
 
   -- * Wrappers and re-exports
   , query
@@ -152,10 +154,8 @@ infixr 5 ++
 ------------------------------------------------------------------------------
 -- | The state for the postgresql-simple snaplet. To use it in your app
 -- include this in your application state and use pgsInit to initialize it.
-data Postgres = Postgres
-    { pgPool :: Pool P.Connection
-    -- ^ Function for retrieving the connection pool
-    }
+data Postgres = PostgresPool (Pool P.Connection)
+              | PostgresConn P.Connection
 
 
 ------------------------------------------------------------------------------
@@ -344,7 +344,7 @@ initHelper PGSConfig{..} = do
     pool <- liftIO $ createPool (P.connectPostgreSQL pgsConnStr) P.close
                                 pgsNumStripes (realToFrac pgsIdleTime)
                                 pgsResources
-    return $ Postgres pool
+    return $ PostgresPool pool
 
 
 ------------------------------------------------------------------------------
@@ -354,8 +354,15 @@ withPG :: (HasPostgres m)
        => (P.Connection -> IO b) -> m b
 withPG f = do
     s <- getPostgresState
-    let pool = pgPool s
-    liftIO $ withResource pool f
+    withPG' s f
+
+
+------------------------------------------------------------------------------
+-- | Convenience function for executing a function that needs a database
+-- connection.
+withPG' :: MonadIO m => Postgres -> (P.Connection -> IO b) -> m b
+withPG' (PostgresPool p) f = liftIO $ withResource p f
+withPG' (PostgresConn c) f = liftIO $ f c
 
 
 ------------------------------------------------------------------------------
