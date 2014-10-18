@@ -51,6 +51,7 @@ import           Database.PostgreSQL.Simple.Types
 import           Snap
 import           Snap.Snaplet.Auth
 import           Snap.Snaplet.PostgresqlSimple
+import           Snap.Snaplet.PostgresqlSimple.Internal
 import           Snap.Snaplet.Session
 import           Web.ClientSession
 import           Paths_snaplet_postgresql_simple
@@ -99,7 +100,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
 -- | Create the user table if it doesn't exist.
 createTableIfMissing :: PostgresAuthManager -> IO ()
 createTableIfMissing PostgresAuthManager{..} = do
-    withPG' pamConn $ \conn -> do
+    liftPG' pamConn $ \conn -> do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
           `T.append` schemaless (tblName pamTable) `T.append` "'"
@@ -174,13 +175,13 @@ instance FromRow AuthUser where
 
 querySingle :: (ToRow q, FromRow a)
             => Postgres -> Query -> q -> IO (Maybe a)
-querySingle pc q ps = withPG' pc $ \conn -> return . listToMaybe =<<
+querySingle pc q ps = liftPG' pc $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
 authExecute :: ToRow q
             => Postgres -> Query -> q -> IO ()
 authExecute pc q ps = do
-    withPG' pc $ \conn -> P.execute conn q ps
+    liftPG' pc $ \conn -> P.execute conn q ps
     return ()
 
 instance P.ToField Password where
@@ -305,7 +306,7 @@ instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 qstr
-        let action = withPG' pamConn $ \conn -> do
+        let action = liftPG' pamConn $ \conn -> do
                 res <- P.query conn q params
                 return $ Right $ fromMaybe u $ listToMaybe res
         E.catch action onFailure

@@ -87,10 +87,8 @@ module Snap.Snaplet.PostgresqlSimple (
   , withTransaction
   , withTransactionLevel
   , withTransactionMode
-{--
   , formatMany
   , formatQuery
---}
 
   -- Re-exported from postgresql-simple
   , P.Query
@@ -104,13 +102,11 @@ module Snap.Snaplet.PostgresqlSimple (
   , P.TransactionMode(..)
   , P.IsolationLevel(..)
   , P.ReadWriteMode(..)
-{--
   , P.begin
   , P.beginLevel
   , P.beginMode
   , P.rollback
   , P.commit
---}
   , (P.:.)(..)
   , ToRow(..)
   , FromRow(..)
@@ -149,30 +145,13 @@ import           Database.PostgreSQL.Simple.FromRow
 import qualified Database.PostgreSQL.Simple as P
 import qualified Database.PostgreSQL.Simple.Transaction as P
 import           Snap
+import           Snap.Snaplet.PostgresqlSimple.Internal
 import           Paths_snaplet_postgresql_simple
 
 -- This is actually more portable than using <>
 (++) :: Monoid a => a -> a -> a
 (++) = mappend
 infixr 5 ++
-
-------------------------------------------------------------------------------
--- | The state for the postgresql-simple snaplet. To use it in your app
--- include this in your application state and use pgsInit to initialize it.
-data Postgres = PostgresPool (Pool P.Connection)
-              | PostgresConn P.Connection
-
-
-------------------------------------------------------------------------------
--- | Instantiate this typeclass on 'Handler b YourAppState' so this snaplet
--- can find the connection source.  If you need to have multiple instances of
--- the postgres snaplet in your application, then don't provide this instance
--- and leverage the default instance by using \"@with dbLens@\" in front of calls
--- to snaplet-postgresql-simple functions.
-class (MonadCatchIO m) => HasPostgres m where
-    getPostgresState :: m Postgres
-    setLocalPostgresState :: Postgres -> m a -> m a
-
 
 ------------------------------------------------------------------------------
 -- | Default instance
@@ -306,34 +285,6 @@ pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
 
 
 ------------------------------------------------------------------------------
--- | Data type holding all the snaplet's config information.
-data PGSConfig = PGSConfig
-    { pgsConnStr    :: ByteString
-      -- ^ A libpq connection string.
-    , pgsNumStripes :: Int
-      -- ^ The number of distinct sub-pools to maintain. The smallest
-      -- acceptable value is 1.
-    , pgsIdleTime   :: Double
-      -- ^ Amount of time for which an unused resource is kept open. The
-      -- smallest acceptable value is 0.5 seconds.
-    , pgsResources  :: Int
-      -- ^ Maximum number of resources to keep open per stripe. The smallest
-      -- acceptable value is 1.
-    }
-
-
-------------------------------------------------------------------------------
--- | Returns a config object with default values and the specified connection
--- string.
-pgsDefaultConfig :: ByteString
-                   -- ^ A connection string such as \"host=localhost
-                   -- port=5432 dbname=mydb\"
-                 -> PGSConfig
-pgsDefaultConfig connstr = PGSConfig connstr 1 5 20
-
-
-
-------------------------------------------------------------------------------
 -- | Builds a PGSConfig object from a configurator Config object.  This
 -- function uses getConnectionString to construct the connection string.  The
 -- rest of the PGSConfig fields are obtained from \"numStripes\",
@@ -354,27 +305,6 @@ initHelper PGSConfig{..} = do
                                 pgsResources
     return $ PostgresPool pool
 
-
-------------------------------------------------------------------------------
--- | Function that reserves a single connection for the duration of the given
---   action.
-withPG :: (HasPostgres m)
-       => m b -> m b
-withPG f = do
-    s <- getPostgresState
-    case s of
-      (PostgresPool p) -> withResource p (\c -> setLocalPostgresState (PostgresConn c) f)
-      (PostgresConn _) -> f
-
-------------------------------------------------------------------------------
--- | Convenience function for executing a function that needs a database
--- connection.
-liftPG :: (HasPostgres m) => (P.Connection -> IO b) -> m b
-liftPG f = do
-    s <- getPostgresState
-    case s of
-      (PostgresPool p) -> liftIO (withResource p f)
-      (PostgresConn c) -> liftIO (f c)
 
 ------------------------------------------------------------------------------
 -- | See 'P.query'
@@ -500,7 +430,6 @@ withTransactionMode mode act = withPG $ CIO.block $ do
     liftPG $ P.commit
     return r
 
-{--
 formatMany :: (ToRow q, HasPostgres m)
            => P.Query -> [q] -> m ByteString
 formatMany q qs = liftPG (\c -> P.formatMany c q qs)
@@ -508,5 +437,4 @@ formatMany q qs = liftPG (\c -> P.formatMany c q qs)
 
 formatQuery :: (ToRow q, HasPostgres m, MonadCatchIO m)
             => P.Query -> q -> m ByteString
-formatQuery q qs = withPG (\c -> liftIO $ P.formatQuery c q qs)
---}
+formatQuery q qs = liftPG (\c -> P.formatQuery c q qs)
