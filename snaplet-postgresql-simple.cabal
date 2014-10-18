@@ -29,7 +29,7 @@ Library
 
   exposed-modules:
     Snap.Snaplet.PostgresqlSimple
-    Snap.Snaplet.Auth.Backends.PostgresqlSimple
+--    Snap.Snaplet.Auth.Backends.PostgresqlSimple
 
   other-modules:
     Paths_snaplet_postgresql_simple
@@ -40,6 +40,7 @@ Library
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
     errors                     >= 1.4     && < 1.5,
+    lens,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 2.3,
     postgresql-simple          >= 0.3     && < 0.5,
