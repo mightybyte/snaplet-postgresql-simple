@@ -64,10 +64,10 @@ module Snap.Snaplet.PostgresqlSimple (
   , HasPostgres(..)
   , PGSConfig(..)
   , pgsDefaultConfig
-  , mkPGSConfig 
+  , mkPGSConfig
   , pgsInit
   , pgsInit'
-  , getConnectionString 
+  , getConnectionString
   , withPG
   , withPG'
 
@@ -84,11 +84,6 @@ module Snap.Snaplet.PostgresqlSimple (
   , execute_
   , executeMany
   , returning
-  , begin
-  , beginLevel
-  , beginMode
-  , rollback
-  , commit
   , withTransaction
   , withTransactionLevel
   , withTransactionMode
@@ -107,6 +102,11 @@ module Snap.Snaplet.PostgresqlSimple (
   , P.TransactionMode(..)
   , P.IsolationLevel(..)
   , P.ReadWriteMode(..)
+  , P.begin
+  , P.beginLevel
+  , P.beginMode
+  , P.rollback
+  , P.commit
   , (P.:.)(..)
   , ToRow(..)
   , FromRow(..)
@@ -351,7 +351,7 @@ initHelper PGSConfig{..} = do
 -- | Convenience function for executing a function that needs a database
 -- connection.
 withPG :: (HasPostgres m)
-       => (P.Connection -> IO b) -> m b
+       => (P.Connection -> m b) -> m b
 withPG f = do
     s <- getPostgresState
     withPG' s f
@@ -360,41 +360,43 @@ withPG f = do
 ------------------------------------------------------------------------------
 -- | Convenience function for executing a function that needs a database
 -- connection.
-withPG' :: MonadIO m => Postgres -> (P.Connection -> IO b) -> m b
-withPG' (PostgresPool p) f = liftIO $ withResource p f
-withPG' (PostgresConn c) f = liftIO $ f c
+withPG' :: (MonadIO m, MonadCatchIO m) => Postgres -> (P.Connection -> m b) -> m b
+withPG' (PostgresPool p) f = withResource p f
+withPG' (PostgresConn c) f = f c
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.query'
-query :: (HasPostgres m, ToRow q, FromRow r)
+query :: (HasPostgres m, MonadCatchIO m, ToRow q, FromRow r)
       => P.Query -> q -> m [r]
-query q params = withPG (\c -> P.query c q params)
+query q params = withPG (\c -> liftIO $ P.query c q params)
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.query_'
-query_ :: (HasPostgres m, FromRow r) => P.Query -> m [r]
-query_ q = withPG (\c -> P.query_ c q)
+query_ :: (HasPostgres m, MonadCatchIO m, FromRow r) => P.Query -> m [r]
+query_ q = withPG (\c -> liftIO $ P.query_ c q)
+
 
 ------------------------------------------------------------------------------
 -- | See 'P.returning'
-returning :: (HasPostgres m, ToRow q, FromRow r)
+returning :: (HasPostgres m, MonadCatchIO m, ToRow q, FromRow r)
       => P.Query -> [q] -> m [r]
-returning q params = withPG (\c -> P.returning c q params)
+returning q params = withPG (\c -> liftIO $ P.returning c q params)
+
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 fold :: (HasPostgres m,
          FromRow row,
          ToRow params,
          MonadCatchIO m)
      => P.Query -> params -> b -> (b -> row -> IO b) -> m b
-fold template qs a f = withPG (\c -> P.fold c template qs a f)
+fold template qs a f = withPG (\c -> liftIO $ P.fold c template qs a f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 foldWithOptions :: (HasPostgres m,
                     FromRow row,
                     ToRow params,
@@ -406,20 +408,20 @@ foldWithOptions :: (HasPostgres m,
                 -> (b -> row -> IO b)
                 -> m b
 foldWithOptions opts template qs a f =
-    withPG (\c -> P.foldWithOptions opts c template qs a f)
+    withPG (\c -> liftIO $ P.foldWithOptions opts c template qs a f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 fold_ :: (HasPostgres m,
           FromRow row,
           MonadCatchIO m)
       => P.Query -> b -> (b -> row -> IO b) -> m b
-fold_ template a f = withPG (\c -> P.fold_ c template a f)
+fold_ template a f = withPG (\c -> liftIO $ P.fold_ c template a f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 foldWithOptions_ :: (HasPostgres m,
                      FromRow row,
                      MonadCatchIO m)
@@ -429,69 +431,47 @@ foldWithOptions_ :: (HasPostgres m,
                  -> (b -> row -> IO b)
                  -> m b
 foldWithOptions_ opts template a f =
-    withPG (\c -> P.foldWithOptions_ opts c template a f)
+    withPG (\c -> liftIO $ P.foldWithOptions_ opts c template a f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 forEach :: (HasPostgres m,
             FromRow r,
             ToRow q,
             MonadCatchIO m)
         => P.Query -> q -> (r -> IO ()) -> m ()
-forEach template qs f = withPG (\c -> P.forEach c template qs f)
+forEach template qs f = withPG (\c -> liftIO $ P.forEach c template qs f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 forEach_ :: (HasPostgres m,
              FromRow r,
              MonadCatchIO m)
          => P.Query -> (r -> IO ()) -> m ()
-forEach_ template f = withPG (\c -> P.forEach_ c template f)
+forEach_ template f = withPG (\c -> liftIO $ P.forEach_ c template f)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 execute :: (HasPostgres m, ToRow q, MonadCatchIO m)
         => P.Query -> q -> m Int64
-execute template qs = withPG (\c -> P.execute c template qs)
+execute template qs = withPG (\c -> liftIO $ P.execute c template qs)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 execute_ :: (HasPostgres m, MonadCatchIO m)
          => P.Query -> m Int64
-execute_ template = withPG (\c -> P.execute_ c template)
+execute_ template = withPG (\c -> liftIO $ P.execute_ c template)
 
 
 ------------------------------------------------------------------------------
--- | 
+-- |
 executeMany :: (HasPostgres m, ToRow q, MonadCatchIO m)
         => P.Query -> [q] -> m Int64
-executeMany template qs = withPG (\c -> P.executeMany c template qs)
-
-
-begin :: (HasPostgres m, MonadCatchIO m) => m ()
-begin = withPG P.begin
-
-
-beginLevel :: (HasPostgres m, MonadCatchIO m)
-           => P.IsolationLevel -> m ()
-beginLevel lvl = withPG (P.beginLevel lvl)
-
-
-beginMode :: (HasPostgres m, MonadCatchIO m)
-          => P.TransactionMode -> m ()
-beginMode mode = withPG (P.beginMode mode)
-
-
-rollback :: (HasPostgres m, MonadCatchIO m) => m ()
-rollback = withPG P.rollback
-
-
-commit :: (HasPostgres m, MonadCatchIO m) => m ()
-commit = withPG P.commit
+executeMany template qs = withPG (\c -> liftIO $ P.executeMany c template qs)
 
 
 withTransaction :: (HasPostgres m, MonadCatchIO m)
@@ -507,18 +487,18 @@ withTransactionLevel lvl =
 
 withTransactionMode :: (HasPostgres m, MonadCatchIO m)
                     => P.TransactionMode -> m a -> m a
-withTransactionMode mode act = do
-    beginMode mode
-    r <- act `CIO.onException` rollback
-    commit
+withTransactionMode mode act = withPG $ \c -> CIO.block $ do
+    liftIO $ P.beginMode mode c
+    r <- CIO.unblock act `CIO.onException` liftIO (P.rollback c)
+    liftIO $ P.commit c
     return r
 
 
 formatMany :: (ToRow q, HasPostgres m, MonadCatchIO m)
            => P.Query -> [q] -> m ByteString
-formatMany q qs = withPG (\c -> P.formatMany c q qs)
+formatMany q qs = withPG (\c -> liftIO $ P.formatMany c q qs)
 
 
 formatQuery :: (ToRow q, HasPostgres m, MonadCatchIO m)
             => P.Query -> q -> m ByteString
-formatQuery q qs = withPG (\c -> P.formatQuery c q qs)
+formatQuery q qs = withPG (\c -> liftIO $ P.formatQuery c q qs)
