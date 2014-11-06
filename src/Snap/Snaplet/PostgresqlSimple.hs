@@ -435,6 +435,6 @@ formatMany :: (ToRow q, HasPostgres m)
 formatMany q qs = liftPG (\c -> P.formatMany c q qs)
 
 
-formatQuery :: (ToRow q, HasPostgres m, MonadCatchIO m)
+formatQuery :: (ToRow q, HasPostgres m)
             => P.Query -> q -> m ByteString
 formatQuery q qs = liftPG (\c -> P.formatQuery c q qs)
