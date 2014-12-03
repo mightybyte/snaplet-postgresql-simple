@@ -281,7 +281,8 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet using a specific configuration.
 pgsInit' :: PGSConfig -> SnapletInit b Postgres
-pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ initHelper config
+pgsInit' config = makeSnaplet "postgresql-simple" description datadir $
+    initHelper config
 
 
 ------------------------------------------------------------------------------

@@ -38,7 +38,6 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Prelude
 import           Control.Error
 import qualified Control.Exception as E
-import           Control.Monad (void)
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
@@ -106,7 +105,7 @@ createTableIfMissing PostgresAuthManager{..} = do
           "select relname from pg_class where relname='"
           `T.append` schemaless (tblName pamTable) `T.append` "'"
         when (null (res :: [Only T.Text])) $
-	    void (P.execute_ conn (Query $ T.encodeUtf8 q))
+          void (P.execute_ conn (Query $ T.encodeUtf8 q))
     return ()
   where
     schemaless = T.reverse . T.takeWhile (/='.') . T.reverse
