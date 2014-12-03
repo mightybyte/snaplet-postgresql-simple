@@ -281,8 +281,7 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet using a specific configuration.
 pgsInit' :: PGSConfig -> SnapletInit b Postgres
-pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ do
-    initHelper config
+pgsInit' config = makeSnaplet "postgresql-simple" description datadir $ initHelper config
 
 
 ------------------------------------------------------------------------------
@@ -317,7 +316,7 @@ query q params = liftPG (\c ->  P.query c q params)
 ------------------------------------------------------------------------------
 -- | See 'P.query_'
 query_ :: (HasPostgres m, FromRow r) => P.Query -> m [r]
-query_ q = liftPG (\c -> P.query_ c q)
+query_ q = liftPG (`P.query_` q)
 
 
 ------------------------------------------------------------------------------
@@ -402,7 +401,7 @@ execute template qs = liftPG (\c -> P.execute c template qs)
 -- |
 execute_ :: (HasPostgres m)
          => P.Query -> m Int64
-execute_ template = liftPG (\c -> P.execute_ c template)
+execute_ template = liftPG (`P.execute_` template)
 
 
 ------------------------------------------------------------------------------
@@ -428,7 +427,7 @@ withTransactionMode :: (HasPostgres m)
 withTransactionMode mode act = withPG $ CIO.block $ do
     liftPG $ P.beginMode mode
     r <- CIO.unblock act `CIO.onException` liftPG P.rollback
-    liftPG $ P.commit
+    liftPG P.commit
     return r
 
 formatMany :: (ToRow q, HasPostgres m)

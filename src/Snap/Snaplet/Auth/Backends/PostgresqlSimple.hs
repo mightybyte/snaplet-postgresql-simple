@@ -38,6 +38,7 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Prelude
 import           Control.Error
 import qualified Control.Exception as E
+import           Control.Monad (void)
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
@@ -80,7 +81,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     let manager = PostgresAuthManager tableDesc $ db ^# snapletValue
     liftIO $ createTableIfMissing manager
     rng <- liftIO mkRNG
-    return $ AuthManager
+    return AuthManager
       { backend = manager
       , session = sess
       , activeUser = Nothing
@@ -105,7 +106,7 @@ createTableIfMissing PostgresAuthManager{..} = do
           "select relname from pg_class where relname='"
           `T.append` schemaless (tblName pamTable) `T.append` "'"
         when (null (res :: [Only T.Text])) $
-          P.execute_ conn (Query $ T.encodeUtf8 q) >> return ()
+	    void (P.execute_ conn (Query $ T.encodeUtf8 q))
     return ()
   where
     schemaless = T.reverse . T.takeWhile (/='.') . T.reverse
@@ -113,7 +114,7 @@ createTableIfMissing PostgresAuthManager{..} = do
           [ "CREATE TABLE \""
           , tblName pamTable
           , "\" ("
-          , T.intercalate "," (map (fDesc . ($pamTable) . (fst)) colDef)
+          , T.intercalate "," (map (fDesc . ($pamTable) . fst) colDef)
           , ")"
           ]
 
