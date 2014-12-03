@@ -39,6 +39,7 @@ Optionally, if you find yourself doing many database queries, you can eliminate 
 
 > instance HasPostgres (Handler b App) where
 >   getPostgresState = with db get
+>   setLocalPostgresState s = local (set (db . snapletValue) s)
 
 With this code, our postHandler example no longer requires the 'with' function:
 

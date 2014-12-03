@@ -8,7 +8,7 @@ module Main where
 ------------------------------------------------------------------------------
 import           Control.Applicative
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Reader
+import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.ByteString (ByteString)
 import           Control.Lens
@@ -40,6 +40,7 @@ makeLenses ''App
 
 instance HasPostgres (Handler b App) where
     getPostgresState = with db get
+    setLocalPostgresState s = local (set (db . snapletValue) s)
 
 ------------------------------------------------------------------------------
 -- | The application's routes.
