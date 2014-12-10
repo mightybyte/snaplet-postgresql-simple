@@ -6,7 +6,7 @@
 module Snap.Snaplet.PostgresqlSimple.Internal where
 
 import           Prelude hiding ((++))
-import           Control.Monad.CatchIO (MonadCatchIO)
+import           Control.Monad.Trans.Control
 import           Control.Monad.IO.Class
 import           Data.ByteString (ByteString)
 import           Data.Pool
@@ -25,7 +25,7 @@ data Postgres = PostgresPool (Pool P.Connection)
 -- the postgres snaplet in your application, then don't provide this instance
 -- and leverage the default instance by using \"@with dbLens@\" in front of calls
 -- to snaplet-postgresql-simple functions.
-class (MonadCatchIO m) => HasPostgres m where
+class (MonadIO m, MonadBaseControl IO m) => HasPostgres m where
     getPostgresState :: m Postgres
     setLocalPostgresState :: Postgres -> m a -> m a
 
@@ -85,4 +85,3 @@ liftPG f = do
 liftPG' :: MonadIO m => Postgres -> (P.Connection -> IO b) -> m b
 liftPG' (PostgresPool p) f = liftIO (withResource p f)
 liftPG' (PostgresConn c) f = liftIO (f c)
-

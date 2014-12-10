@@ -123,8 +123,8 @@ module Snap.Snaplet.PostgresqlSimple (
 import           Prelude hiding ((++))
 import           Control.Applicative
 import           Control.Lens (set)
-import           Control.Monad.CatchIO (MonadCatchIO)
-import qualified Control.Monad.CatchIO as CIO
+import           Control.Monad.Trans.Control
+import qualified Control.Exception.Lifted as CIO
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Reader
@@ -167,14 +167,14 @@ instance HasPostgres (Handler b Postgres) where
 --
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
-instance (MonadCatchIO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
+instance (MonadIO m, MonadBaseControl IO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
     getPostgresState = asks (^# snapletValue)
     setLocalPostgresState s = local (set snapletValue s)
 
 ------------------------------------------------------------------------------
 -- | A convenience instance to make it easier to use functions written for
 -- this snaplet in non-snaplet contexts.
-instance (MonadCatchIO m) => HasPostgres (ReaderT Postgres m) where
+instance (MonadIO m, MonadBaseControl IO m) => HasPostgres (ReaderT Postgres m) where
     getPostgresState = ask
     setLocalPostgresState s = local (const s)
 
@@ -340,8 +340,7 @@ fold template qs a f = liftPG (\c -> P.fold c template qs a f)
 -- |
 foldWithOptions :: (HasPostgres m,
                     FromRow row,
-                    ToRow params,
-                    MonadCatchIO m)
+                    ToRow params)
                 => P.FoldOptions
                 -> P.Query
                 -> params
@@ -355,8 +354,7 @@ foldWithOptions opts template qs a f =
 ------------------------------------------------------------------------------
 -- |
 fold_ :: (HasPostgres m,
-          FromRow row,
-          MonadCatchIO m)
+          FromRow row)
       => P.Query -> b -> (b -> row -> IO b) -> m b
 fold_ template a f = liftPG (\c -> P.fold_ c template a f)
 
@@ -425,9 +423,9 @@ withTransactionLevel lvl =
 
 withTransactionMode :: (HasPostgres m)
                     => P.TransactionMode -> m a -> m a
-withTransactionMode mode act = withPG $ CIO.block $ do
+withTransactionMode mode act = withPG $ CIO.mask $ \restore -> do
     liftPG $ P.beginMode mode
-    r <- CIO.unblock act `CIO.onException` liftPG P.rollback
+    r <- restore act `CIO.onException` liftPG P.rollback
     liftPG P.commit
     return r
 
