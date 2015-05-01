@@ -38,6 +38,9 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
 import           Prelude
 import           Control.Error
 import qualified Control.Exception as E
+import           Control.Lens.Lens ((^#))
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad (liftM, when, void)
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T

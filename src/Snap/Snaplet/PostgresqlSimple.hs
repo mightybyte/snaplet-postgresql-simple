@@ -122,7 +122,7 @@ module Snap.Snaplet.PostgresqlSimple (
 
 import           Prelude hiding ((++))
 import           Control.Applicative
-import           Control.Lens (set)
+import           Control.Lens (set, (^#))
 import           Control.Monad.Trans.Control
 import qualified Control.Exception.Lifted as CIO
 import           Control.Monad.IO.Class
