@@ -5,9 +5,8 @@
 
 module Snap.Snaplet.PostgresqlSimple.Internal where
 
-import           Prelude hiding ((++))
-import           Control.Monad.Trans.Control
 import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Control (MonadBaseControl(..))
 import           Data.ByteString (ByteString)
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P

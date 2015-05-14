@@ -35,7 +35,7 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
-import           Prelude
+import           Control.Applicative
 import           Control.Error
 import qualified Control.Exception as E
 import           Control.Lens ((^#))
