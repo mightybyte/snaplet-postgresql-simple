@@ -120,16 +120,14 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
-import           Prelude hiding ((++))
-import           Control.Applicative
-import           Control.Lens (set, (^#))
-import           Control.Monad.Trans.Control
 import qualified Control.Exception.Lifted as CIO
+import           Control.Lens (set, (^#))
+import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Reader
 import           Data.ByteString (ByteString)
-import           Data.Monoid(Monoid(..))
+import           Data.Monoid(Monoid(..), (<>))
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as C
 import qualified Data.Text as T
@@ -148,11 +146,6 @@ import qualified Database.PostgreSQL.Simple.Transaction as P
 import           Snap
 import           Snap.Snaplet.PostgresqlSimple.Internal
 import           Paths_snaplet_postgresql_simple
-
--- This is actually more portable than using <>
-(++) :: Monoid a => a -> a -> a
-(++) = mappend
-infixr 5 ++
 
 ------------------------------------------------------------------------------
 -- | Default instance
@@ -210,9 +203,9 @@ getConnectionString config = do
             , ["gsslib"]
             , ["service"]
             ]
-    connstr <- mconcat <$> mapM showParam params
-    extra <- TB.fromText <$> C.lookupDefault "" config "connectionString"
-    return $! T.encodeUtf8 (TL.toStrict (TB.toLazyText (connstr ++ extra)))
+    connstr <- fmap mconcat $ mapM showParam params
+    extra   <- fmap TB.fromText $ C.lookupDefault "" config "connectionString"
+    return $! T.encodeUtf8 (TL.toStrict (TB.toLazyText (connstr <> extra)))
   where
     qt = TB.singleton '\''
     bs = TB.singleton '\\'
@@ -229,12 +222,12 @@ getConnectionString config = do
     showParam [] = undefined
     showParam names@(name:_) = do
       mval :: Maybe C.Value <- lookupConfig names
-      let key = TB.fromText name ++ eq
+      let key = TB.fromText name <> eq
       case mval of
         Nothing           -> return mempty
-        Just (C.Bool   x) -> return (key ++ showBool x ++ sp)
-        Just (C.String x) -> return (key ++ showText x ++ sp)
-        Just (C.Number x) -> return (key ++ showNum  x ++ sp)
+        Just (C.Bool   x) -> return (key <> showBool x <> sp)
+        Just (C.String x) -> return (key <> showText x <> sp)
+        Just (C.Number x) -> return (key <> showNum  x <> sp)
         Just (C.List   _) -> return mempty
 
     showBool x = TB.decimal (fromEnum x)
@@ -246,19 +239,19 @@ getConnectionString config = do
                              ( fromIntegral (numerator   x)
                              / fromIntegral (denominator x) :: Double )
 
-    showText x = qt ++ loop x
+    showText x = qt <> loop x
       where
         loop (T.break escapeNeeded -> (a,b))
-          = TB.fromText a ++
+          = TB.fromText a <>
               case T.uncons b of
                 Nothing      ->  qt
-                Just (c,b')  ->  escapeChar c ++ loop b'
+                Just (c,b')  ->  escapeChar c <> loop b'
 
     escapeNeeded c = c == '\'' || c == '\\'
 
     escapeChar c = case c of
-                     '\'' -> bs ++ qt
-                     '\\' -> bs ++ bs
+                     '\'' -> bs <> qt
+                     '\\' -> bs <> bs
                      _    -> TB.singleton c
 
 
@@ -267,7 +260,7 @@ description = "PostgreSQL abstraction"
 
 
 datadir :: Maybe (IO FilePath)
-datadir = Just $ liftM (++"/resources/db") getDataDir
+datadir = Just $ liftM (<>"/resources/db") getDataDir
 
 
 ------------------------------------------------------------------------------
@@ -291,11 +284,11 @@ pgsInit' config = makeSnaplet "postgresql-simple" description datadir $
 -- rest of the PGSConfig fields are obtained from \"numStripes\",
 -- \"idleTime\", and \"maxResourcesPerStripe\".
 mkPGSConfig :: MonadIO m => C.Config -> m PGSConfig
-mkPGSConfig config = do
-    connstr <- liftIO $ getConnectionString config
-    stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
-    idle <- liftIO $ C.lookupDefault 5 config "idleTime"
-    resources <- liftIO $ C.lookupDefault 20 config "maxResourcesPerStripe"
+mkPGSConfig config = liftIO $ do
+    connstr <- getConnectionString config
+    stripes <- C.lookupDefault 1 config "numStripes"
+    idle <- C.lookupDefault 5 config "idleTime"
+    resources <- C.lookupDefault 20 config "maxResourcesPerStripe"
     return $ PGSConfig connstr stripes idle resources
 
 

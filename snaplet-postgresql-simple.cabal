@@ -41,15 +41,16 @@ Library
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
     errors                     >= 1.4     && < 1.5,
-    lens,
-    lifted-base,
-    monad-control,
+    lens                                     < 4.10,
+    lifted-base                >= 0.2     && < 0.3,
+    monad-control              >= 1.0     && < 1.1,
     mtl                        >= 2       && < 2.3,
     postgresql-simple          >= 0.3     && < 0.5,
-    resource-pool,
-    snap                       >= 1.0,
+    resource-pool              >= 0.2     && < 0.3,
+    snap                       >= 1.0     && < 1.1,
     text                       >= 0.11    && < 1.3,
     transformers               >= 0.2     && < 0.5,
+    transformers-base          >= 0.4     && < 0.5,
     unordered-containers       >= 0.2     && < 0.3
 
 
