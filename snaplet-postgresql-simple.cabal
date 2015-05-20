@@ -41,7 +41,7 @@ Library
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
     errors                     >= 1.4     && < 1.5,
-    lens                                     < 4.10,
+    lens                                     < 4.12,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 2.3,
     postgresql-simple          >= 0.3     && < 0.5,
