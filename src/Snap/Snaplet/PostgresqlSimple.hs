@@ -120,9 +120,9 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
-import qualified Control.Exception.Lifted as CIO
+import qualified Control.Exception as E
 import           Control.Lens (set, (^#))
-import           Control.Monad.Trans.Control (MonadBaseControl)
+import           Control.Monad.Trans.Control (MonadBaseControl(..))
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Reader
@@ -416,11 +416,16 @@ withTransactionLevel lvl =
 
 withTransactionMode :: (HasPostgres m)
                     => P.TransactionMode -> m a -> m a
-withTransactionMode mode act = withPG $ CIO.mask $ \restore -> do
-    liftPG $ P.beginMode mode
-    r <- restore act `CIO.onException` liftPG P.rollback
-    liftPG P.commit
-    return r
+withTransactionMode mode act = withPG $ do
+    pg <- getPostgresState
+    r <- liftBaseWith $ \run -> E.mask
+                      $ \unmask -> liftPG' pg
+                      $ \con -> do
+        P.beginMode mode con
+        r <- unmask (run act) `E.onException` P.rollback con
+        P.commit con
+        return r
+    restoreM r
 
 formatMany :: (ToRow q, HasPostgres m)
            => P.Query -> [q] -> m ByteString
