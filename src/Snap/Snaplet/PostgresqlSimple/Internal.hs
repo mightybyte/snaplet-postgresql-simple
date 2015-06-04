@@ -6,7 +6,7 @@
 module Snap.Snaplet.PostgresqlSimple.Internal where
 
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Control (MonadBaseControl(..))
+import           Control.Monad.Trans.Control (MonadBaseControl(..), control)
 import           Data.ByteString (ByteString)
 import           Data.Pool
 import qualified Database.PostgreSQL.Simple as P
@@ -72,15 +72,24 @@ withPG f = do
 ------------------------------------------------------------------------------
 -- | Convenience function for executing a function that needs a database
 -- connection.
-liftPG :: (HasPostgres m) => (P.Connection -> IO b) -> m b
-liftPG f = do
+liftPG :: (HasPostgres m) => (P.Connection -> m a) -> m a
+liftPG act = do
+   pg <- getPostgresState
+   control $ \run ->
+     withConnection pg $ \con -> run (act con)
+
+
+-- | Convenience function for executing a function that needs a database
+-- connection specialized to IO.
+liftPG' :: (HasPostgres m) => (P.Connection -> IO b) -> m b
+liftPG' f = do
     s <- getPostgresState
-    liftPG' s f
+    withConnection s f
 
 
 ------------------------------------------------------------------------------
 -- | Convenience function for executing a function that needs a database
 -- connection.
-liftPG' :: MonadIO m => Postgres -> (P.Connection -> IO b) -> m b
-liftPG' (PostgresPool p) f = liftIO (withResource p f)
-liftPG' (PostgresConn c) f = liftIO (f c)
+withConnection :: MonadIO m => Postgres -> (P.Connection -> IO b) -> m b
+withConnection (PostgresPool p) f = liftIO (withResource p f)
+withConnection (PostgresConn c) f = liftIO (f c)
