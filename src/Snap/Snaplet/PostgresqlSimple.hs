@@ -70,6 +70,7 @@ module Snap.Snaplet.PostgresqlSimple (
   , pgsInit'
   , getConnectionString
   , withPG
+  , P.Connection
   , liftPG
 
   -- * Wrappers and re-exports
@@ -304,20 +305,20 @@ initHelper PGSConfig{..} = do
 -- | See 'P.query'
 query :: (HasPostgres m, ToRow q, FromRow r)
       => P.Query -> q -> m [r]
-query q params = liftPG (\c ->  P.query c q params)
+query q params = liftPG' (\c ->  P.query c q params)
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.query_'
 query_ :: (HasPostgres m, FromRow r) => P.Query -> m [r]
-query_ q = liftPG (`P.query_` q)
+query_ q = liftPG' (`P.query_` q)
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.returning'
 returning :: (HasPostgres m, ToRow q, FromRow r)
       => P.Query -> [q] -> m [r]
-returning q params = liftPG (\c -> P.returning c q params)
+returning q params = liftPG' (\c -> P.returning c q params)
 
 
 ------------------------------------------------------------------------------
@@ -326,7 +327,7 @@ fold :: (HasPostgres m,
          FromRow row,
          ToRow params)
      => P.Query -> params -> b -> (b -> row -> IO b) -> m b
-fold template qs a f = liftPG (\c -> P.fold c template qs a f)
+fold template qs a f = liftPG' (\c -> P.fold c template qs a f)
 
 
 ------------------------------------------------------------------------------
@@ -341,7 +342,7 @@ foldWithOptions :: (HasPostgres m,
                 -> (b -> row -> IO b)
                 -> m b
 foldWithOptions opts template qs a f =
-    liftPG (\c -> P.foldWithOptions opts c template qs a f)
+    liftPG' (\c -> P.foldWithOptions opts c template qs a f)
 
 
 ------------------------------------------------------------------------------
@@ -349,7 +350,7 @@ foldWithOptions opts template qs a f =
 fold_ :: (HasPostgres m,
           FromRow row)
       => P.Query -> b -> (b -> row -> IO b) -> m b
-fold_ template a f = liftPG (\c -> P.fold_ c template a f)
+fold_ template a f = liftPG' (\c -> P.fold_ c template a f)
 
 
 ------------------------------------------------------------------------------
@@ -362,7 +363,7 @@ foldWithOptions_ :: (HasPostgres m,
                  -> (b -> row -> IO b)
                  -> m b
 foldWithOptions_ opts template a f =
-    liftPG (\c -> P.foldWithOptions_ opts c template a f)
+    liftPG' (\c -> P.foldWithOptions_ opts c template a f)
 
 
 ------------------------------------------------------------------------------
@@ -371,7 +372,7 @@ forEach :: (HasPostgres m,
             FromRow r,
             ToRow q)
         => P.Query -> q -> (r -> IO ()) -> m ()
-forEach template qs f = liftPG (\c -> P.forEach c template qs f)
+forEach template qs f = liftPG' (\c -> P.forEach c template qs f)
 
 
 ------------------------------------------------------------------------------
@@ -379,28 +380,28 @@ forEach template qs f = liftPG (\c -> P.forEach c template qs f)
 forEach_ :: (HasPostgres m,
              FromRow r)
          => P.Query -> (r -> IO ()) -> m ()
-forEach_ template f = liftPG (\c -> P.forEach_ c template f)
+forEach_ template f = liftPG' (\c -> P.forEach_ c template f)
 
 
 ------------------------------------------------------------------------------
 -- |
 execute :: (HasPostgres m, ToRow q)
         => P.Query -> q -> m Int64
-execute template qs = liftPG (\c -> P.execute c template qs)
+execute template qs = liftPG' (\c -> P.execute c template qs)
 
 
 ------------------------------------------------------------------------------
 -- |
 execute_ :: (HasPostgres m)
          => P.Query -> m Int64
-execute_ template = liftPG (`P.execute_` template)
+execute_ template = liftPG' (`P.execute_` template)
 
 
 ------------------------------------------------------------------------------
 -- |
 executeMany :: (HasPostgres m, ToRow q)
         => P.Query -> [q] -> m Int64
-executeMany template qs = liftPG (\c -> P.executeMany c template qs)
+executeMany template qs = liftPG' (\c -> P.executeMany c template qs)
 
 
 withTransaction :: (HasPostgres m)
@@ -419,7 +420,7 @@ withTransactionMode :: (HasPostgres m)
 withTransactionMode mode act = withPG $ do
     pg <- getPostgresState
     r <- liftBaseWith $ \run -> E.mask
-                      $ \unmask -> liftPG' pg
+                      $ \unmask -> withConnection pg
                       $ \con -> do
         P.beginMode mode con
         r <- unmask (run act) `E.onException` P.rollback con
@@ -429,9 +430,9 @@ withTransactionMode mode act = withPG $ do
 
 formatMany :: (ToRow q, HasPostgres m)
            => P.Query -> [q] -> m ByteString
-formatMany q qs = liftPG (\c -> P.formatMany c q qs)
+formatMany q qs = liftPG' (\c -> P.formatMany c q qs)
 
 
 formatQuery :: (ToRow q, HasPostgres m)
             => P.Query -> q -> m ByteString
-formatQuery q qs = liftPG (\c -> P.formatQuery c q qs)
+formatQuery q qs = liftPG' (\c -> P.formatQuery c q qs)
