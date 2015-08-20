@@ -10,6 +10,7 @@ license-file:   LICENSE
 author:         Doug Beardsley
 maintainer:     mightybyte@gmail.com
 build-type:     Simple
+tested-with:    GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.1, GHC == 7.10.2
 cabal-version:  >= 1.6
 homepage:       https://github.com/mightybyte/snaplet-postgresql-simple
 category:       Web, Snap
