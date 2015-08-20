@@ -1,5 +1,5 @@
 name:           snaplet-postgresql-simple
-version:        0.6.0.2
+version:        0.6.0.3
 synopsis:       postgresql-simple snaplet for the Snap Framework
 description:    This snaplet contains support for using the Postgresql
                 database with a Snap Framework application via the
@@ -15,7 +15,9 @@ cabal-version:  >= 1.6
 homepage:       https://github.com/mightybyte/snaplet-postgresql-simple
 category:       Web, Snap
 
-extra-source-files:  LICENSE
+extra-source-files:
+  LICENSE
+  README.md
 
 data-files:
   resources/db/devel.cfg
