@@ -29,6 +29,9 @@ matrix:
       compiler: ": #GHC 7.10.2"
       addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.2], sources: [hvr-ghc]}}
 
+  allow_failures:
+     - env: CABALVER=1.22 GHCVER=7.10.2
+
 before_install:
  - unset CC
  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
