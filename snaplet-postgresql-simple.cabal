@@ -43,7 +43,6 @@ Library
     bytestring                 >= 0.9.1   && < 0.11,
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
-    errors                     >= 1.4     && < 1.5,
     lens                                     < 4.13,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 2.3,

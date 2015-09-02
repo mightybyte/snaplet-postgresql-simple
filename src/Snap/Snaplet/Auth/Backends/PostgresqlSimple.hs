@@ -37,13 +37,13 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
 ------------------------------------------------------------------------------
 import           Prelude
 import           Control.Applicative
-import           Control.Error
 import qualified Control.Exception as E
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Trans
 import qualified Data.Configurator as C
 import qualified Data.HashMap.Lazy as HM
+import           Data.Maybe
 import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as T
