@@ -46,7 +46,7 @@ Library
     lens                                     < 4.13,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 2.3,
-    postgresql-simple          >= 0.3     && < 0.5,
+    postgresql-simple          >= 0.3     && < 0.6,
     resource-pool-catchio      >= 0.2     && < 0.3,
     snap                       >= 0.10    && < 0.15,
     text                       >= 0.11    && < 1.3,
