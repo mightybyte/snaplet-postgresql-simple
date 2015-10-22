@@ -43,7 +43,7 @@ Library
     bytestring                 >= 0.9.1   && < 0.11,
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
-    lens                                     < 4.13,
+    lens                                     < 4.14,
     MonadCatchIO-transformers  >= 0.3     && < 0.4,
     mtl                        >= 2       && < 2.3,
     postgresql-simple          >= 0.3     && < 0.6,
