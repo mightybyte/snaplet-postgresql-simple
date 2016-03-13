@@ -59,7 +59,22 @@ pgsDefaultConfig connstr = PGSConfig connstr 1 5 20
 
 ------------------------------------------------------------------------------
 -- | Function that reserves a single connection for the duration of the given
---   action.
+-- action. Nested calls to withPG will only reserve one connection. For example,
+-- the following code calls withPG twice in a nested way yet only results in a single
+-- connection being reserved:
+-- 
+-- > myHandler = withPG $ do
+-- >    queryTheDatabase
+-- >    commonDatabaseMethod
+-- >
+-- > commonDatabaseMethod = withPG $ do
+-- >    moreDatabaseActions
+-- >    evenMoreDatabaseActions
+--
+-- This is useful in a practical setting because you may often find yourself in a situation
+-- where you have common code (that requires a database connection) that you wish to call from 
+-- other blocks of code that may require a database connection and you still want to make sure
+-- that you are only using one connection through all of your nested methods.
 withPG :: (HasPostgres m)
        => m b -> m b
 withPG f = do

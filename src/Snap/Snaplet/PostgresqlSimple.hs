@@ -48,6 +48,14 @@ With this code, our postHandler example no longer requires the 'with' function:
 >     posts <- query_ "select * from blog_post"
 >     ...
 
+If you have code that runs multiple queries but you want to make sure that you only use one database connection then you can use the withPG function, like so:
+
+> postHandler :: Handler App App ()
+> postHandler = withPG $ do
+>     posts <- query_ "select * from blog_post"
+>     links <- query_ "select * from links"
+>     ...
+
 The first time you run an application with the postgresql-simple snaplet, a
 configuration file @devel.cfg@ is created in the @snaplets/postgresql-simple@
 directory underneath your project root.  It specifies how to connect to your
@@ -121,12 +129,14 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
+import           Prelude hiding ((++))
+import           Control.Applicative
 import qualified Control.Exception as E
-import           Control.Lens (set, (^#))
-import           Control.Monad.Trans.Control (MonadBaseControl(..))
+import           Control.Lens
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Reader
+import           Control.Monad.Trans.Control (MonadBaseControl(..))
 import           Data.ByteString (ByteString)
 import           Data.Monoid(Monoid(..), (<>))
 import qualified Data.Configurator as C
@@ -275,7 +285,7 @@ pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet using a specific configuration.
 pgsInit' :: PGSConfig -> SnapletInit b Postgres
-pgsInit' config = makeSnaplet "postgresql-simple" description datadir $
+pgsInit' config = makeSnaplet "postgresql-simple" description Nothing $
     initHelper config
 
 

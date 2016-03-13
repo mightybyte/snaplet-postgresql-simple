@@ -35,13 +35,15 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
+import           Prelude
 import           Control.Applicative
-import           Control.Error
 import qualified Control.Exception as E
-import           Control.Lens ((^#))
-import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad (liftM, when, void)
+import           Control.Lens
+import           Control.Monad
+import           Control.Monad.Trans
 import qualified Data.Configurator as C
+import qualified Data.HashMap.Lazy as HM
+import           Data.Maybe
 import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as T
@@ -266,31 +268,31 @@ colDef =
   ]
 
 saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
-saveQuery at u@AuthUser{..} = maybe insertQuery updateQuery userId
+saveQuery atable u@AuthUser{..} = maybe insertQuery updateQuery userId
   where
     insertQuery =  (T.concat [ "INSERT INTO "
-                             , tblName at
+                             , tblName atable
                              , " ("
                              , T.intercalate "," cols
                              , ") VALUES ("
                              , T.intercalate "," vals
                              , ") RETURNING "
-                             , T.intercalate "," (map (fst . ($at) . fst) colDef)
+                             , T.intercalate "," (map (fst . ($atable) . fst) colDef)
                              ]
                    , params)
-    qval f  = fst (f at) `T.append` " = ?"
+    qval f  = fst (f atable) `T.append` " = ?"
     updateQuery uid =
         (T.concat [ "UPDATE "
-                  , tblName at
+                  , tblName atable
                   , " SET "
                   , T.intercalate "," (map (qval . fst) $ tail colDef)
                   , " WHERE "
-                  , fst (colId at)
+                  , fst (colId atable)
                   , " = ? RETURNING "
-                  , T.intercalate "," (map (fst . ($at) . fst) colDef)
+                  , T.intercalate "," (map (fst . ($atable) . fst) colDef)
                   ]
         , params ++ [P.toField $ unUid uid])
-    cols = map (fst . ($at) . fst) $ tail colDef
+    cols = map (fst . ($atable) . fst) $ tail colDef
     vals = map (const "?") cols
     params = map (($u) . snd) $ tail colDef
 
