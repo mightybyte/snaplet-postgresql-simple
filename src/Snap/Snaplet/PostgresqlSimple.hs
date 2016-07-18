@@ -420,17 +420,29 @@ executeMany :: (HasPostgres m, ToRow q)
 executeMany template qs = liftPG (\c -> P.executeMany c template qs)
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransaction`.  Doing so has been
+-- known to cause DB connection leaks.
 withTransaction :: (HasPostgres m)
                 => m a -> m a
 withTransaction = withTransactionMode P.defaultTransactionMode
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionLevel`.  Doing so has
+-- been known to cause DB connection leaks.
 withTransactionLevel :: (HasPostgres m)
                      => P.IsolationLevel -> m a -> m a
 withTransactionLevel lvl =
     withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionMode`.  Doing so has
+-- been known to cause DB connection leaks.
 withTransactionMode :: (HasPostgres m)
                     => P.TransactionMode -> m a -> m a
 withTransactionMode mode act = withPG $ CIO.block $ do
