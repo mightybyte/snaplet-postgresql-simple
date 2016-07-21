@@ -90,7 +90,6 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
       , activeUser = Nothing
       , minPasswdLen = asMinPasswdLen authSettings
       , rememberCookieName = asRememberCookieName authSettings
-      , rememberCookieDomain = asRememberCookieDomain authSettings
       , rememberPeriod = asRememberPeriod authSettings
       , siteKey = key
       , lockout = asLockout authSettings
@@ -129,8 +128,8 @@ buildUid = UserId . T.pack . show
 instance FromField UserId where
     fromField f v = buildUid <$> fromField f v
 
-instance FromField HashedPassword where
-    fromField f v = HashedPassword <$> fromField f v
+instance FromField Password where
+    fromField f v = Encrypted <$> fromField f v
 
 instance FromRow AuthUser where
     fromRow =
@@ -153,6 +152,8 @@ instance FromRow AuthUser where
         <*> _userUpdatedAt
         <*> _userResetToken
         <*> _userResetRequestedAt
+        <*> _userRoles
+        <*> _userMeta
       where
         !_userId               = field
         !_userLogin            = field
@@ -172,6 +173,8 @@ instance FromRow AuthUser where
         !_userUpdatedAt        = field
         !_userResetToken       = field
         !_userResetRequestedAt = field
+        !_userRoles            = pure []
+        !_userMeta             = pure HM.empty
 
 
 querySingle :: (ToRow q, FromRow a)
@@ -185,8 +188,9 @@ authExecute pc q ps = do
     withConnection pc $ \conn -> P.execute conn q ps
     return ()
 
-instance P.ToField HashedPassword where
-    toField pw = P.toField $ hashedByteString pw
+instance P.ToField Password where
+    toField (ClearText bs) = P.toField bs
+    toField (Encrypted bs) = P.toField bs
 
 
 -- | Datatype containing the names of the columns for the authentication table.
