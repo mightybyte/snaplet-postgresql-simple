@@ -90,6 +90,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
       , activeUser = Nothing
       , minPasswdLen = asMinPasswdLen authSettings
       , rememberCookieName = asRememberCookieName authSettings
+      , rememberCookieDomain = Nothing
       , rememberPeriod = asRememberPeriod authSettings
       , siteKey = key
       , lockout = asLockout authSettings
