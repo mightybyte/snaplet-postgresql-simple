@@ -80,6 +80,7 @@ module Snap.Snaplet.PostgresqlSimple (
   , withPG
   , P.Connection
   , liftPG
+  , liftPG'
 
   -- * Wrappers and re-exports
   , query
