@@ -172,14 +172,16 @@ instance HasPostgres (Handler b Postgres) where
 --
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
-instance (MonadIO m, MonadBaseControl IO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadBaseControl IO m)
+  => HasPostgres (ReaderT (Snaplet Postgres) m) where
     getPostgresState = asks (^# snapletValue)
     setLocalPostgresState s = local (set snapletValue s)
 
 ------------------------------------------------------------------------------
 -- | A convenience instance to make it easier to use functions written for
 -- this snaplet in non-snaplet contexts.
-instance (MonadIO m, MonadBaseControl IO m) => HasPostgres (ReaderT Postgres m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadBaseControl IO m)
+  => HasPostgres (ReaderT Postgres m) where
     getPostgresState = ask
     setLocalPostgresState s = local (const s)
 
