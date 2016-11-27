@@ -59,7 +59,7 @@ instance HasPostgres m => HasPostgres (MaybeT m) where
       setLocalPostgresState pg m
 
 
-instance HasPostgres m => HasPostgres (ReaderT r m) where
+instance {-#OVERLAPPABLE #-} HasPostgres m => HasPostgres (ReaderT r m) where
     getPostgresState = lift getPostgresState
     setLocalPostgresState pg (ReaderT m) = ReaderT $ \e ->
       setLocalPostgresState pg (m e)
