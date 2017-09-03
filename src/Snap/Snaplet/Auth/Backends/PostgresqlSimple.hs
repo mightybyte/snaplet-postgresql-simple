@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -90,6 +91,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
       , activeUser = Nothing
       , minPasswdLen = asMinPasswdLen authSettings
       , rememberCookieName = asRememberCookieName authSettings
+      , rememberCookieDomain = Nothing
       , rememberPeriod = asRememberPeriod authSettings
       , siteKey = key
       , lockout = asLockout authSettings
@@ -104,7 +106,7 @@ initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
 -- | Create the user table if it doesn't exist.
 createTableIfMissing :: PostgresAuthManager -> IO ()
 createTableIfMissing PostgresAuthManager{..} = do
-    liftPG' pamConn $ \conn -> do
+    withConnection pamConn $ \conn -> do
         res <- P.query_ conn $ Query $ T.encodeUtf8 $
           "select relname from pg_class where relname='"
           `T.append` schemaless (tblName pamTable) `T.append` "'"
@@ -118,7 +120,10 @@ createTableIfMissing PostgresAuthManager{..} = do
           , tblName pamTable
           , "\" ("
           , T.intercalate "," (map (fDesc . ($pamTable) . fst) colDef)
-          , ")"
+          , "); "
+          , "CREATE INDEX email_idx ON \""
+          , tblName pamTable
+          , "\" (email);"
           ]
 
 buildUid :: Int -> UserId
@@ -179,13 +184,13 @@ instance FromRow AuthUser where
 
 querySingle :: (ToRow q, FromRow a)
             => Postgres -> Query -> q -> IO (Maybe a)
-querySingle pc q ps = liftPG' pc $ \conn -> return . listToMaybe =<<
+querySingle pc q ps = withConnection pc $ \conn -> return . listToMaybe =<<
     P.query conn q ps
 
 authExecute :: ToRow q
             => Postgres -> Query -> q -> IO ()
 authExecute pc q ps = do
-    liftPG' pc $ \conn -> P.execute conn q ps
+    withConnection pc $ \conn -> P.execute conn q ps
     return ()
 
 instance P.ToField Password where
@@ -310,7 +315,7 @@ instance IAuthBackend PostgresAuthManager where
     save PostgresAuthManager{..} u@AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 qstr
-        let action = liftPG' pamConn $ \conn -> do
+        let action = withConnection pamConn $ \conn -> do
                 res <- P.query conn q params
                 return $ Right $ fromMaybe u $ listToMaybe res
         E.catch action onFailure
@@ -337,6 +342,19 @@ instance IAuthBackend PostgresAuthManager where
                 ]
         querySingle pamConn q [login]
       where cols = map (fst . ($pamTable) . fst) colDef
+
+#if MIN_VERSION_snap(1,1,0)
+    lookupByEmail PostgresAuthManager{..} email = do
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "select ", T.intercalate "," cols, " from "
+                , tblName pamTable
+                , " where "
+                , fst (colEmail pamTable)
+                , " = ?"
+                ]
+        querySingle pamConn q [email]
+      where cols = map (fst . ($pamTable) . fst) colDef
+#endif
 
     lookupByRememberToken PostgresAuthManager{..} token = do
         let q = Query $ T.encodeUtf8 $ T.concat
