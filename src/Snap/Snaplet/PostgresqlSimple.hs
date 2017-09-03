@@ -78,7 +78,9 @@ module Snap.Snaplet.PostgresqlSimple (
   , pgsInit'
   , getConnectionString
   , withPG
+  , P.Connection
   , liftPG
+  , liftPG'
 
   -- * Wrappers and re-exports
   , query
@@ -130,14 +132,14 @@ module Snap.Snaplet.PostgresqlSimple (
 
 import           Prelude hiding ((++))
 import           Control.Applicative
+import qualified Control.Exception as E
 import           Control.Lens
-import           Control.Monad.CatchIO (MonadCatchIO)
-import qualified Control.Monad.CatchIO as CIO
 import           Control.Monad.IO.Class
 import           Control.Monad.State
 import           Control.Monad.Reader
+import           Control.Monad.Trans.Control (MonadBaseControl(..))
 import           Data.ByteString (ByteString)
-import           Data.Monoid(Monoid(..))
+import           Data.Monoid(Monoid(..), (<>))
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as C
 import qualified Data.Text as T
@@ -157,11 +159,6 @@ import           Snap
 import           Snap.Snaplet.PostgresqlSimple.Internal
 import           Paths_snaplet_postgresql_simple
 
--- This is actually more portable than using <>
-(++) :: Monoid a => a -> a -> a
-(++) = mappend
-infixr 5 ++
-
 ------------------------------------------------------------------------------
 -- | Default instance
 instance HasPostgres (Handler b Postgres) where
@@ -175,14 +172,16 @@ instance HasPostgres (Handler b Postgres) where
 --
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
-instance (MonadCatchIO m) => HasPostgres (ReaderT (Snaplet Postgres) m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadBaseControl IO m)
+  => HasPostgres (ReaderT (Snaplet Postgres) m) where
     getPostgresState = asks (^# snapletValue)
     setLocalPostgresState s = local (set snapletValue s)
 
 ------------------------------------------------------------------------------
 -- | A convenience instance to make it easier to use functions written for
 -- this snaplet in non-snaplet contexts.
-instance (MonadCatchIO m) => HasPostgres (ReaderT Postgres m) where
+instance {-# OVERLAPPING #-} (MonadIO m, MonadBaseControl IO m)
+  => HasPostgres (ReaderT Postgres m) where
     getPostgresState = ask
     setLocalPostgresState s = local (const s)
 
@@ -218,9 +217,9 @@ getConnectionString config = do
             , ["gsslib"]
             , ["service"]
             ]
-    connstr <- mconcat <$> mapM showParam params
-    extra <- TB.fromText <$> C.lookupDefault "" config "connectionString"
-    return $! T.encodeUtf8 (TL.toStrict (TB.toLazyText (connstr ++ extra)))
+    connstr <- fmap mconcat $ mapM showParam params
+    extra   <- fmap TB.fromText $ C.lookupDefault "" config "connectionString"
+    return $! T.encodeUtf8 (TL.toStrict (TB.toLazyText (connstr <> extra)))
   where
     qt = TB.singleton '\''
     bs = TB.singleton '\\'
@@ -237,12 +236,12 @@ getConnectionString config = do
     showParam [] = undefined
     showParam names@(name:_) = do
       mval :: Maybe C.Value <- lookupConfig names
-      let key = TB.fromText name ++ eq
+      let key = TB.fromText name <> eq
       case mval of
         Nothing           -> return mempty
-        Just (C.Bool   x) -> return (key ++ showBool x ++ sp)
-        Just (C.String x) -> return (key ++ showText x ++ sp)
-        Just (C.Number x) -> return (key ++ showNum  x ++ sp)
+        Just (C.Bool   x) -> return (key <> showBool x <> sp)
+        Just (C.String x) -> return (key <> showText x <> sp)
+        Just (C.Number x) -> return (key <> showNum  x <> sp)
         Just (C.List   _) -> return mempty
 
     showBool x = TB.decimal (fromEnum x)
@@ -254,19 +253,19 @@ getConnectionString config = do
                              ( fromIntegral (numerator   x)
                              / fromIntegral (denominator x) :: Double )
 
-    showText x = qt ++ loop x
+    showText x = qt <> loop x
       where
         loop (T.break escapeNeeded -> (a,b))
-          = TB.fromText a ++
+          = TB.fromText a <>
               case T.uncons b of
                 Nothing      ->  qt
-                Just (c,b')  ->  escapeChar c ++ loop b'
+                Just (c,b')  ->  escapeChar c <> loop b'
 
     escapeNeeded c = c == '\'' || c == '\\'
 
     escapeChar c = case c of
-                     '\'' -> bs ++ qt
-                     '\\' -> bs ++ bs
+                     '\'' -> bs <> qt
+                     '\\' -> bs <> bs
                      _    -> TB.singleton c
 
 
@@ -275,7 +274,7 @@ description = "PostgreSQL abstraction"
 
 
 datadir :: Maybe (IO FilePath)
-datadir = Just $ liftM (++"/resources/db") getDataDir
+datadir = Just $ liftM (<>"/resources/db") getDataDir
 
 
 ------------------------------------------------------------------------------
@@ -299,11 +298,11 @@ pgsInit' config = makeSnaplet "postgresql-simple" description Nothing $
 -- rest of the PGSConfig fields are obtained from \"numStripes\",
 -- \"idleTime\", and \"maxResourcesPerStripe\".
 mkPGSConfig :: MonadIO m => C.Config -> m PGSConfig
-mkPGSConfig config = do
-    connstr <- liftIO $ getConnectionString config
-    stripes <- liftIO $ C.lookupDefault 1 config "numStripes"
-    idle <- liftIO $ C.lookupDefault 5 config "idleTime"
-    resources <- liftIO $ C.lookupDefault 20 config "maxResourcesPerStripe"
+mkPGSConfig config = liftIO $ do
+    connstr <- getConnectionString config
+    stripes <- C.lookupDefault 1 config "numStripes"
+    idle <- C.lookupDefault 5 config "idleTime"
+    resources <- C.lookupDefault 20 config "maxResourcesPerStripe"
     return $ PGSConfig connstr stripes idle resources
 
 
@@ -319,20 +318,20 @@ initHelper PGSConfig{..} = do
 -- | See 'P.query'
 query :: (HasPostgres m, ToRow q, FromRow r)
       => P.Query -> q -> m [r]
-query q params = liftPG (\c ->  P.query c q params)
+query q params = liftPG' (\c ->  P.query c q params)
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.query_'
 query_ :: (HasPostgres m, FromRow r) => P.Query -> m [r]
-query_ q = liftPG (`P.query_` q)
+query_ q = liftPG' (`P.query_` q)
 
 
 ------------------------------------------------------------------------------
 -- | See 'P.returning'
 returning :: (HasPostgres m, ToRow q, FromRow r)
       => P.Query -> [q] -> m [r]
-returning q params = liftPG (\c -> P.returning c q params)
+returning q params = liftPG' (\c -> P.returning c q params)
 
 
 ------------------------------------------------------------------------------
@@ -341,15 +340,14 @@ fold :: (HasPostgres m,
          FromRow row,
          ToRow params)
      => P.Query -> params -> b -> (b -> row -> IO b) -> m b
-fold template qs a f = liftPG (\c -> P.fold c template qs a f)
+fold template qs a f = liftPG' (\c -> P.fold c template qs a f)
 
 
 ------------------------------------------------------------------------------
 -- |
 foldWithOptions :: (HasPostgres m,
                     FromRow row,
-                    ToRow params,
-                    MonadCatchIO m)
+                    ToRow params)
                 => P.FoldOptions
                 -> P.Query
                 -> params
@@ -357,16 +355,15 @@ foldWithOptions :: (HasPostgres m,
                 -> (b -> row -> IO b)
                 -> m b
 foldWithOptions opts template qs a f =
-    liftPG (\c -> P.foldWithOptions opts c template qs a f)
+    liftPG' (\c -> P.foldWithOptions opts c template qs a f)
 
 
 ------------------------------------------------------------------------------
 -- |
 fold_ :: (HasPostgres m,
-          FromRow row,
-          MonadCatchIO m)
+          FromRow row)
       => P.Query -> b -> (b -> row -> IO b) -> m b
-fold_ template a f = liftPG (\c -> P.fold_ c template a f)
+fold_ template a f = liftPG' (\c -> P.fold_ c template a f)
 
 
 ------------------------------------------------------------------------------
@@ -379,7 +376,7 @@ foldWithOptions_ :: (HasPostgres m,
                  -> (b -> row -> IO b)
                  -> m b
 foldWithOptions_ opts template a f =
-    liftPG (\c -> P.foldWithOptions_ opts c template a f)
+    liftPG' (\c -> P.foldWithOptions_ opts c template a f)
 
 
 ------------------------------------------------------------------------------
@@ -388,7 +385,7 @@ forEach :: (HasPostgres m,
             FromRow r,
             ToRow q)
         => P.Query -> q -> (r -> IO ()) -> m ()
-forEach template qs f = liftPG (\c -> P.forEach c template qs f)
+forEach template qs f = liftPG' (\c -> P.forEach c template qs f)
 
 
 ------------------------------------------------------------------------------
@@ -396,54 +393,71 @@ forEach template qs f = liftPG (\c -> P.forEach c template qs f)
 forEach_ :: (HasPostgres m,
              FromRow r)
          => P.Query -> (r -> IO ()) -> m ()
-forEach_ template f = liftPG (\c -> P.forEach_ c template f)
+forEach_ template f = liftPG' (\c -> P.forEach_ c template f)
 
 
 ------------------------------------------------------------------------------
 -- |
 execute :: (HasPostgres m, ToRow q)
         => P.Query -> q -> m Int64
-execute template qs = liftPG (\c -> P.execute c template qs)
+execute template qs = liftPG' (\c -> P.execute c template qs)
 
 
 ------------------------------------------------------------------------------
 -- |
 execute_ :: (HasPostgres m)
          => P.Query -> m Int64
-execute_ template = liftPG (`P.execute_` template)
+execute_ template = liftPG' (`P.execute_` template)
 
 
 ------------------------------------------------------------------------------
 -- |
 executeMany :: (HasPostgres m, ToRow q)
         => P.Query -> [q] -> m Int64
-executeMany template qs = liftPG (\c -> P.executeMany c template qs)
+executeMany template qs = liftPG' (\c -> P.executeMany c template qs)
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransaction`.  Doing so has been
+-- known to cause DB connection leaks.
 withTransaction :: (HasPostgres m)
                 => m a -> m a
 withTransaction = withTransactionMode P.defaultTransactionMode
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionLevel`.  Doing so has
+-- been known to cause DB connection leaks.
 withTransactionLevel :: (HasPostgres m)
                      => P.IsolationLevel -> m a -> m a
 withTransactionLevel lvl =
     withTransactionMode P.defaultTransactionMode { P.isolationLevel = lvl }
 
 
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionMode`.  Doing so has
+-- been known to cause DB connection leaks.
 withTransactionMode :: (HasPostgres m)
                     => P.TransactionMode -> m a -> m a
-withTransactionMode mode act = withPG $ CIO.block $ do
-    liftPG $ P.beginMode mode
-    r <- CIO.unblock act `CIO.onException` liftPG P.rollback
-    liftPG P.commit
-    return r
+withTransactionMode mode act = withPG $ do
+    pg <- getPostgresState
+    r <- liftBaseWith $ \run -> E.mask
+                      $ \unmask -> withConnection pg
+                      $ \con -> do
+        P.beginMode mode con
+        r <- unmask (run act) `E.onException` P.rollback con
+        P.commit con
+        return r
+    restoreM r
 
 formatMany :: (ToRow q, HasPostgres m)
            => P.Query -> [q] -> m ByteString
-formatMany q qs = liftPG (\c -> P.formatMany c q qs)
+formatMany q qs = liftPG' (\c -> P.formatMany c q qs)
 
 
 formatQuery :: (ToRow q, HasPostgres m)
             => P.Query -> q -> m ByteString
-formatQuery q qs = liftPG (\c -> P.formatQuery c q qs)
+formatQuery q qs = liftPG' (\c -> P.formatQuery c q qs)
