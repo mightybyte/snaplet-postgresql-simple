@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
@@ -48,6 +49,7 @@ routes :: [(ByteString, Handler App App ())]
 routes = [ ("/",            writeText "hello")
          , ("foo", fooHandler)
          , ("add/:uname", addHandler)
+         , ("find/:email", findHandler)
          ]
 
 fooHandler = do
@@ -56,16 +58,25 @@ fooHandler = do
 
 addHandler = do
     mname <- getParam "uname"
+    email <- getParam "email"
     let name = maybe "guest" T.decodeUtf8 mname
-    u <- with auth $ createUser name ""
+    u <- with auth $ do
+        createUser name "" >>= \u -> case u of
+            Left _   -> return u
+            Right u' -> saveUser (u' {userEmail = T.decodeUtf8 <$> email})
     liftIO $ print u
+
+findHandler = do
+    email <- getParam "email"
+    env <- with auth get
+    liftIO $ lookupByEmail env (maybe "" T.decodeUtf8 email) >>= print
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     s <- nestSnaplet "" sess $
-         initCookieSessionManager "site_key.txt" "_cookie" Nothing
+         initCookieSessionManager "site_key.txt" "_cookie" Nothing Nothing
     d <- nestSnaplet "db" db pgsInit
     a <- nestSnaplet "auth" auth $ initPostgresAuth sess d
     addRoutes routes

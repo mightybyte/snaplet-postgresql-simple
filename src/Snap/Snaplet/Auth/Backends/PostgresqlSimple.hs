@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -119,7 +120,10 @@ createTableIfMissing PostgresAuthManager{..} = do
           , tblName pamTable
           , "\" ("
           , T.intercalate "," (map (fDesc . ($pamTable) . fst) colDef)
-          , ")"
+          , "); "
+          , "CREATE INDEX email_idx ON \""
+          , tblName pamTable
+          , "\" (email);"
           ]
 
 buildUid :: Int -> UserId
@@ -338,6 +342,19 @@ instance IAuthBackend PostgresAuthManager where
                 ]
         querySingle pamConn q [login]
       where cols = map (fst . ($pamTable) . fst) colDef
+
+#if MIN_VERSION_snap(1,1,0)
+    lookupByEmail PostgresAuthManager{..} email = do
+        let q = Query $ T.encodeUtf8 $ T.concat
+                [ "select ", T.intercalate "," cols, " from "
+                , tblName pamTable
+                , " where "
+                , fst (colEmail pamTable)
+                , " = ?"
+                ]
+        querySingle pamConn q [email]
+      where cols = map (fst . ($pamTable) . fst) colDef
+#endif
 
     lookupByRememberToken PostgresAuthManager{..} token = do
         let q = Query $ T.encodeUtf8 $ T.concat
