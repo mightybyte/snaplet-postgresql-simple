@@ -10,7 +10,7 @@ license-file:   LICENSE
 author:         Doug Beardsley
 maintainer:     mightybyte@gmail.com
 build-type:     Simple
-tested-with:    GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.1, GHC == 7.10.2
+tested-with:    GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1, GHC == 8.2.1
 cabal-version:  >= 1.10
 homepage:       https://github.com/mightybyte/snaplet-postgresql-simple
 category:       Web, Snap
@@ -44,7 +44,7 @@ Library
     Paths_snaplet_postgresql_simple
 
   build-depends:
-    base                       >= 4       && < 4.10,
+    base                       >= 4       && < 4.11,
     bytestring                 >= 0.9.1   && < 0.11,
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
