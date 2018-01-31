@@ -18,7 +18,7 @@ snaplets as follows:
 >     { ... -- your own application state here
 >     , _sess :: Snaplet SessionManager
 >     , _db   :: Snaplet Postgres
->     , _auth :: Snaplet (AuthManager App)
+>     , _auth :: Snaplet (A.AuthManager App)
 >     }
 
 Then in your initializer you'll have something like this:
@@ -36,36 +36,41 @@ module Snap.Snaplet.Auth.Backends.PostgresqlSimple
   ) where
 
 ------------------------------------------------------------------------------
-import           Prelude
 import           Control.Applicative
-import qualified Control.Exception as E
-import           Control.Lens
-import           Control.Monad
-import           Control.Monad.Trans
-import qualified Data.Configurator as C
-import qualified Data.HashMap.Lazy as HM
-import           Data.Maybe
-import qualified Data.Text as T
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as T
-import qualified Database.PostgreSQL.Simple as P
-import qualified Database.PostgreSQL.Simple.ToField as P
-import           Database.PostgreSQL.Simple.FromField
-import           Database.PostgreSQL.Simple.FromRow
-import           Database.PostgreSQL.Simple.Types
-import           Snap
-import           Snap.Snaplet.Auth
-import           Snap.Snaplet.PostgresqlSimple
-import           Snap.Snaplet.PostgresqlSimple.Internal
-import           Snap.Snaplet.Session
-import           Web.ClientSession
+import qualified Control.Exception                      as E
+import           Control.Lens                           ((^#))
+import           Control.Monad                          (liftM, void, when)
+import           Control.Monad.Trans                    (liftIO)
+import qualified Data.Configurator                      as C
+import qualified Data.HashMap.Lazy                      as HM
+import           Data.Maybe                             (fromMaybe, listToMaybe)
+import           Data.Text                              (Text)
+import qualified Data.Text                              as T
+import qualified Data.Text.Encoding                     as T
+import qualified Database.PostgreSQL.Simple             as P
+import           Database.PostgreSQL.Simple.FromField   (FromField, fromField)
+import qualified Database.PostgreSQL.Simple.ToField     as P
+import           Database.PostgreSQL.Simple.Types       (Query (Query))
 import           Paths_snaplet_postgresql_simple
+import           Prelude
+import           Snap                                   (Snaplet, SnapletInit,
+                                                         SnapletLens,
+                                                         getSnapletUserConfig,
+                                                         makeSnaplet,
+                                                         snapletValue)
+import qualified Snap.Snaplet.Auth                      as A
+import           Snap.Snaplet.PostgresqlSimple          (FromRow, Only, ToRow,
+                                                         field, fromRow)
+import           Snap.Snaplet.PostgresqlSimple.Internal (Postgres,
+                                                         withConnection)
+import           Snap.Snaplet.Session                   (SessionManager, mkRNG)
+import           Web.ClientSession                      (getKey)
 ------------------------------------------------------------------------------
 
 
 data PostgresAuthManager = PostgresAuthManager
-    { pamTable    :: AuthTable
-    , pamConn     :: Postgres
+    { pamTable :: AuthTable
+    , pamConn  :: Postgres
     }
 
 
@@ -75,26 +80,26 @@ data PostgresAuthManager = PostgresAuthManager
 initPostgresAuth
   :: SnapletLens b SessionManager  -- ^ Lens to the session snaplet
   -> Snaplet Postgres  -- ^ The postgres snaplet
-  -> SnapletInit b (AuthManager b)
+  -> SnapletInit b (A.AuthManager b)
 initPostgresAuth sess db = makeSnaplet "postgresql-auth" desc datadir $ do
     config <- getSnapletUserConfig
     authTable <- liftIO $ C.lookupDefault "snap_auth_user" config "authTable"
-    authSettings <- authSettingsFromConfig
-    key <- liftIO $ getKey (asSiteKey authSettings)
+    authSettings <- A.authSettingsFromConfig
+    key <- liftIO $ getKey (A.asSiteKey authSettings)
     let tableDesc = defAuthTable { tblName = authTable }
     let manager = PostgresAuthManager tableDesc $ db ^# snapletValue
     liftIO $ createTableIfMissing manager
     rng <- liftIO mkRNG
-    return AuthManager
+    return A.AuthManager
       { backend = manager
       , session = sess
       , activeUser = Nothing
-      , minPasswdLen = asMinPasswdLen authSettings
-      , rememberCookieName = asRememberCookieName authSettings
+      , minPasswdLen = A.asMinPasswdLen authSettings
+      , rememberCookieName = A.asRememberCookieName authSettings
       , rememberCookieDomain = Nothing
-      , rememberPeriod = asRememberPeriod authSettings
+      , rememberPeriod = A.asRememberPeriod authSettings
       , siteKey = key
-      , lockout = asLockout authSettings
+      , lockout = A.asLockout authSettings
       , randomNumberGenerator = rng
       }
   where
@@ -126,19 +131,19 @@ createTableIfMissing PostgresAuthManager{..} = do
           , "\" (email);"
           ]
 
-buildUid :: Int -> UserId
-buildUid = UserId . T.pack . show
+buildUid :: Int -> A.UserId
+buildUid = A.UserId . T.pack . show
 
 
-instance FromField UserId where
+instance FromField A.UserId where
     fromField f v = buildUid <$> fromField f v
 
-instance FromField Password where
-    fromField f v = Encrypted <$> fromField f v
+instance FromField A.Password where
+    fromField f v = A.Encrypted <$> fromField f v
 
-instance FromRow AuthUser where
+instance FromRow A.AuthUser where
     fromRow =
-        AuthUser
+        A.AuthUser
         <$> _userId
         <*> _userLogin
         <*> _userEmail
@@ -193,9 +198,9 @@ authExecute pc q ps = do
     withConnection pc $ \conn -> P.execute conn q ps
     return ()
 
-instance P.ToField Password where
-    toField (ClearText bs) = P.toField bs
-    toField (Encrypted bs) = P.toField bs
+instance P.ToField A.Password where
+    toField (A.ClearText bs) = P.toField bs
+    toField (A.Encrypted bs) = P.toField bs
 
 
 -- | Datatype containing the names of the columns for the authentication table.
@@ -254,30 +259,30 @@ fDesc f = fst f `T.append` " " `T.append` snd f
 
 -- | List of deconstructors so it's easier to extract column names from an
 -- 'AuthTable'.
-colDef :: [(AuthTable -> (Text, Text), AuthUser -> P.Action)]
+colDef :: [(AuthTable -> (Text, Text), A.AuthUser -> P.Action)]
 colDef =
-  [ (colId              , P.toField . fmap unUid . userId)
-  , (colLogin           , P.toField . userLogin)
-  , (colEmail           , P.toField . userEmail)
-  , (colPassword        , P.toField . userPassword)
-  , (colActivatedAt     , P.toField . userActivatedAt)
-  , (colSuspendedAt     , P.toField . userSuspendedAt)
-  , (colRememberToken   , P.toField . userRememberToken)
-  , (colLoginCount      , P.toField . userLoginCount)
-  , (colFailedLoginCount, P.toField . userFailedLoginCount)
-  , (colLockedOutUntil  , P.toField . userLockedOutUntil)
-  , (colCurrentLoginAt  , P.toField . userCurrentLoginAt)
-  , (colLastLoginAt     , P.toField . userLastLoginAt)
-  , (colCurrentLoginIp  , P.toField . userCurrentLoginIp)
-  , (colLastLoginIp     , P.toField . userLastLoginIp)
-  , (colCreatedAt       , P.toField . userCreatedAt)
-  , (colUpdatedAt       , P.toField . userUpdatedAt)
-  , (colResetToken      , P.toField . userResetToken)
-  , (colResetRequestedAt, P.toField . userResetRequestedAt)
+  [ (colId              , P.toField . fmap A.unUid . A.userId)
+  , (colLogin           , P.toField . A.userLogin)
+  , (colEmail           , P.toField . A.userEmail)
+  , (colPassword        , P.toField . A.userPassword)
+  , (colActivatedAt     , P.toField . A.userActivatedAt)
+  , (colSuspendedAt     , P.toField . A.userSuspendedAt)
+  , (colRememberToken   , P.toField . A.userRememberToken)
+  , (colLoginCount      , P.toField . A.userLoginCount)
+  , (colFailedLoginCount, P.toField . A.userFailedLoginCount)
+  , (colLockedOutUntil  , P.toField . A.userLockedOutUntil)
+  , (colCurrentLoginAt  , P.toField . A.userCurrentLoginAt)
+  , (colLastLoginAt     , P.toField . A.userLastLoginAt)
+  , (colCurrentLoginIp  , P.toField . A.userCurrentLoginIp)
+  , (colLastLoginIp     , P.toField . A.userLastLoginIp)
+  , (colCreatedAt       , P.toField . A.userCreatedAt)
+  , (colUpdatedAt       , P.toField . A.userUpdatedAt)
+  , (colResetToken      , P.toField . A.userResetToken)
+  , (colResetRequestedAt, P.toField . A.userResetRequestedAt)
   ]
 
-saveQuery :: AuthTable -> AuthUser -> (Text, [P.Action])
-saveQuery atable u@AuthUser{..} = maybe insertQuery updateQuery userId
+saveQuery :: AuthTable -> A.AuthUser -> (Text, [P.Action])
+saveQuery atable u@A.AuthUser{..} = maybe insertQuery updateQuery userId
   where
     insertQuery =  (T.concat [ "INSERT INTO "
                              , tblName atable
@@ -300,19 +305,19 @@ saveQuery atable u@AuthUser{..} = maybe insertQuery updateQuery userId
                   , " = ? RETURNING "
                   , T.intercalate "," (map (fst . ($atable) . fst) colDef)
                   ]
-        , params ++ [P.toField $ unUid uid])
+        , params ++ [P.toField $ A.unUid uid])
     cols = map (fst . ($atable) . fst) $ tail colDef
     vals = map (const "?") cols
     params = map (($u) . snd) $ tail colDef
 
 
-onFailure :: Monad m => E.SomeException -> m (Either AuthFailure a)
-onFailure e = return $ Left $ AuthError $ show e
+onFailure :: Monad m => E.SomeException -> m (Either A.AuthFailure a)
+onFailure e = return $ Left $ A.AuthError $ show e
 
 ------------------------------------------------------------------------------
 -- |
-instance IAuthBackend PostgresAuthManager where
-    save PostgresAuthManager{..} u@AuthUser{..} = do
+instance A.IAuthBackend PostgresAuthManager where
+    save PostgresAuthManager{..} u@A.AuthUser{..} = do
         let (qstr, params) = saveQuery pamTable u
         let q = Query $ T.encodeUtf8 qstr
         let action = withConnection pamConn $ \conn -> do
@@ -329,7 +334,7 @@ instance IAuthBackend PostgresAuthManager where
                 , fst (colId pamTable)
                 , " = ?"
                 ]
-        querySingle pamConn q [unUid uid]
+        querySingle pamConn q [A.unUid uid]
       where cols = map (fst . ($pamTable) . fst) colDef
 
     lookupByLogin PostgresAuthManager{..} login = do
@@ -367,7 +372,7 @@ instance IAuthBackend PostgresAuthManager where
         querySingle pamConn q [token]
       where cols = map (fst . ($pamTable) . fst) colDef
 
-    destroy PostgresAuthManager{..} AuthUser{..} = do
+    destroy PostgresAuthManager{..} A.AuthUser{..} = do
         let q = Query $ T.encodeUtf8 $ T.concat
                 [ "delete from "
                 , tblName pamTable

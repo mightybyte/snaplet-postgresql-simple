@@ -1,27 +1,28 @@
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Snaplet.PostgresqlSimple.Internal where
 
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Control (MonadBaseControl(..), control)
-import           Control.Monad.Trans.Identity
-import           Control.Monad.Trans.List
-import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.Reader
-import qualified Control.Monad.Trans.RWS.Lazy as LRWS
-import qualified Control.Monad.Trans.RWS.Strict as SRWS
-import qualified Control.Monad.Trans.State.Lazy as LS
-import qualified Control.Monad.Trans.State.Strict as SS
-import qualified Control.Monad.Trans.Writer.Lazy as LW
+import           Control.Monad.IO.Class            (MonadIO, liftIO)
+import           Control.Monad.Trans               (lift)
+import           Control.Monad.Trans.Control       (MonadBaseControl (..),
+                                                    control)
+import           Control.Monad.Trans.Identity      (IdentityT (IdentityT))
+import           Control.Monad.Trans.List          (ListT (ListT))
+import           Control.Monad.Trans.Maybe         (MaybeT (MaybeT))
+import           Control.Monad.Trans.Reader        (ReaderT (ReaderT))
+import qualified Control.Monad.Trans.RWS.Lazy      as LRWS
+import qualified Control.Monad.Trans.RWS.Strict    as SRWS
+import qualified Control.Monad.Trans.State.Lazy    as LS
+import qualified Control.Monad.Trans.State.Strict  as SS
+import qualified Control.Monad.Trans.Writer.Lazy   as LW
 import qualified Control.Monad.Trans.Writer.Strict as SW
-import           Data.ByteString (ByteString)
-import           Data.Monoid
-import           Data.Pool
-import qualified Database.PostgreSQL.Simple as P
+import           Data.ByteString                   (ByteString)
+import           Data.Monoid                       (Monoid)
+import           Data.Pool                         (Pool, withResource)
+import qualified Database.PostgreSQL.Simple        as P
 
 ------------------------------------------------------------------------------
 -- | The state for the postgresql-simple snaplet. To use it in your app
@@ -134,7 +135,7 @@ pgsDefaultConfig connstr = PGSConfig connstr 1 5 20
 -- action. Nested calls to withPG will only reserve one connection. For example,
 -- the following code calls withPG twice in a nested way yet only results in a single
 -- connection being reserved:
--- 
+--
 -- > myHandler = withPG $ do
 -- >    queryTheDatabase
 -- >    commonDatabaseMethod
@@ -144,7 +145,7 @@ pgsDefaultConfig connstr = PGSConfig connstr 1 5 20
 -- >    evenMoreDatabaseActions
 --
 -- This is useful in a practical setting because you may often find yourself in a situation
--- where you have common code (that requires a database connection) that you wish to call from 
+-- where you have common code (that requires a database connection) that you wish to call from
 -- other blocks of code that may require a database connection and you still want to make sure
 -- that you are only using one connection through all of your nested methods.
 withPG :: (HasPostgres m)
