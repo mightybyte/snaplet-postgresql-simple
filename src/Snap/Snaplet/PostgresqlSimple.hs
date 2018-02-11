@@ -1,6 +1,6 @@
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -130,38 +130,41 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
-import           Prelude hiding ((++))
 import           Control.Applicative
-import qualified Control.Exception as E
-import           Control.Lens
-import           Control.Monad.IO.Class
-import           Control.Monad.State
-import           Control.Monad.Reader
-import           Control.Monad.Trans.Control (MonadBaseControl(..))
-import           Data.ByteString (ByteString)
-import           Data.Monoid(Monoid(..), (<>))
-import qualified Data.Configurator as C
-import qualified Data.Configurator.Types as C
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Builder as TB
-import qualified Data.Text.Lazy.Builder.Int as TB
-import qualified Data.Text.Lazy.Builder.RealFloat as TB
-import           Data.Int
-import           Data.Ratio
-import           Data.Pool
-import           Database.PostgreSQL.Simple.ToRow
+import qualified Control.Exception                      as E
+import           Control.Lens                           (set, (^#))
+import           Control.Monad                          (liftM)
+import           Control.Monad.IO.Class                 (MonadIO, liftIO)
+import           Control.Monad.Reader                   (ReaderT, ask, asks,
+                                                         local)
+import           Control.Monad.State                    (get)
+import           Control.Monad.Trans.Control            (MonadBaseControl,
+                                                         liftBaseWith, restoreM)
+import           Data.ByteString                        (ByteString)
+import qualified Data.Configurator                      as C
+import qualified Data.Configurator.Types                as C
+import           Data.Int                               (Int64)
+import           Data.Monoid                            (Monoid (..), (<>))
+import           Data.Pool                              (createPool)
+import           Data.Ratio                             (denominator, numerator)
+import qualified Data.Text                              as T
+import qualified Data.Text.Encoding                     as T
+import qualified Data.Text.Lazy                         as TL
+import qualified Data.Text.Lazy.Builder                 as TB
+import qualified Data.Text.Lazy.Builder.Int             as TB
+import qualified Data.Text.Lazy.Builder.RealFloat       as TB
+import qualified Database.PostgreSQL.Simple             as P
 import           Database.PostgreSQL.Simple.FromRow
-import qualified Database.PostgreSQL.Simple as P
+import           Database.PostgreSQL.Simple.ToRow
 import qualified Database.PostgreSQL.Simple.Transaction as P
-import           Snap
-import           Snap.Snaplet.PostgresqlSimple.Internal
 import           Paths_snaplet_postgresql_simple
+import           Prelude                                hiding ((++))
+import qualified Snap                                   as Snap
+import           Snap.Snaplet.PostgresqlSimple.Internal
 
 ------------------------------------------------------------------------------
 -- | Default instance
-instance HasPostgres (Handler b Postgres) where
+instance HasPostgres (Snap.Handler b Postgres) where
     getPostgresState = get
     setLocalPostgresState s = local (const s)
 
@@ -173,9 +176,9 @@ instance HasPostgres (Handler b Postgres) where
 -- > d <- nestSnaplet "db" db pgsInit
 -- > count <- liftIO $ runReaderT (execute "INSERT ..." params) d
 instance {-# OVERLAPPING #-} (MonadIO m, MonadBaseControl IO m)
-  => HasPostgres (ReaderT (Snaplet Postgres) m) where
-    getPostgresState = asks (^# snapletValue)
-    setLocalPostgresState s = local (set snapletValue s)
+  => HasPostgres (ReaderT (Snap.Snaplet Postgres) m) where
+    getPostgresState = asks (^# Snap.snapletValue)
+    setLocalPostgresState s = local (set Snap.snapletValue s)
 
 ------------------------------------------------------------------------------
 -- | A convenience instance to make it easier to use functions written for
@@ -258,8 +261,8 @@ getConnectionString config = do
         loop (T.break escapeNeeded -> (a,b))
           = TB.fromText a <>
               case T.uncons b of
-                Nothing      ->  qt
-                Just (c,b')  ->  escapeChar c <> loop b'
+                Nothing     ->  qt
+                Just (c,b') ->  escapeChar c <> loop b'
 
     escapeNeeded c = c == '\'' || c == '\\'
 
@@ -279,16 +282,16 @@ datadir = Just $ liftM (<>"/resources/db") getDataDir
 
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet
-pgsInit :: SnapletInit b Postgres
-pgsInit = makeSnaplet "postgresql-simple" description datadir $ do
-    config <- mkPGSConfig =<< getSnapletUserConfig
+pgsInit :: Snap.SnapletInit b Postgres
+pgsInit = Snap.makeSnaplet "postgresql-simple" description datadir $ do
+    config <- mkPGSConfig =<< Snap.getSnapletUserConfig
     initHelper config
 
 
 ------------------------------------------------------------------------------
 -- | Initialize the snaplet using a specific configuration.
-pgsInit' :: PGSConfig -> SnapletInit b Postgres
-pgsInit' config = makeSnaplet "postgresql-simple" description Nothing $
+pgsInit' :: PGSConfig -> Snap.SnapletInit b Postgres
+pgsInit' config = Snap.makeSnaplet "postgresql-simple" description Nothing $
     initHelper config
 
 
