@@ -98,6 +98,8 @@ module Snap.Snaplet.PostgresqlSimple (
   , withTransaction
   , withTransactionLevel
   , withTransactionMode
+  , withTransactionEither
+  , withTransactionModeEither
   , formatMany
   , formatQuery
 
@@ -453,6 +455,31 @@ withTransactionMode mode act = withPG $ do
         P.beginMode mode con
         r <- unmask (run act) `E.onException` P.rollback con
         P.commit con
+        return r
+    restoreM r
+
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionMode`.  Doing so has
+-- been known to cause DB connection leaks.
+withTransactionEither :: (HasPostgres m)
+                      => m (Either a b) -> m (Either a b)
+withTransactionEither = withTransactionModeEither P.defaultTransactionMode
+
+------------------------------------------------------------------------------
+-- | Be careful that you do not call Snap's `finishWith` function anywhere
+-- inside the function that you pass to `withTransactionMode`.  Doing so has
+-- been known to cause DB connection leaks.
+withTransactionModeEither :: (HasPostgres m)
+                          => P.TransactionMode -> m (Either a b) -> m (Either a b)
+withTransactionModeEither mode act = withPG $ do
+    pg <- getPostgresState
+    r <- liftBaseWith $ \run -> E.mask
+                      $ \unmask -> withConnection pg
+                      $ \con -> do
+        P.beginMode mode con
+        r <- unmask (run act) `E.onException` P.rollback con
+        either (const $ P.rollback con) (const $ P.commit con) $ restoreM r
         return r
     restoreM r
 
