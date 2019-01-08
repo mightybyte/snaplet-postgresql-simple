@@ -10,7 +10,6 @@ import           Control.Monad.Trans               (lift)
 import           Control.Monad.Trans.Control       (MonadBaseControl (..),
                                                     control)
 import           Control.Monad.Trans.Identity      (IdentityT (IdentityT))
-import           Control.Monad.Trans.List          (ListT (ListT))
 import           Control.Monad.Trans.Maybe         (MaybeT (MaybeT))
 import           Control.Monad.Trans.Reader        (ReaderT (ReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy      as LRWS
@@ -45,12 +44,6 @@ class (MonadIO m, MonadBaseControl IO m) => HasPostgres m where
 instance HasPostgres m => HasPostgres (IdentityT m) where
     getPostgresState = lift getPostgresState
     setLocalPostgresState pg (IdentityT m) = IdentityT $
-      setLocalPostgresState pg m
-
-
-instance HasPostgres m => HasPostgres (ListT m) where
-    getPostgresState = lift getPostgresState
-    setLocalPostgresState pg (ListT m) = ListT $
       setLocalPostgresState pg m
 
 

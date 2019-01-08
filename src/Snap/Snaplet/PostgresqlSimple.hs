@@ -132,7 +132,6 @@ module Snap.Snaplet.PostgresqlSimple (
 
   ) where
 
-import           Control.Applicative
 import qualified Control.Exception                      as E
 import           Control.Lens                           (set, (^#))
 import           Control.Monad                          (liftM)
