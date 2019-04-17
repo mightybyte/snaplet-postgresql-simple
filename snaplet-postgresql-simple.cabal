@@ -19,7 +19,8 @@ tested-with:
   GHC == 7.10.3,
   GHC == 8.0.1,
   GHC == 8.2.1,
-  GHC == 8.4.1
+  GHC == 8.4.1,
+  GHC == 8.6.4
 
 extra-source-files:
   LICENSE
@@ -50,15 +51,15 @@ Library
     Paths_snaplet_postgresql_simple
 
   build-depends:
-    base                       >= 4       && < 4.12,
+    base                       >= 4       && < 4.13,
     bytestring                 >= 0.9.1   && < 0.11,
     clientsession              >= 0.7.2   && < 0.10,
     configurator               >= 0.2     && < 0.4,
-    lens                       >= 3.7.6   && < 4.17,
+    lens                       >= 3.7.6   && < 4.18,
     lifted-base                >= 0.2     && < 0.3,
     monad-control              >= 1.0     && < 1.1,
     mtl                        >= 2       && < 2.3,
-    postgresql-simple          >= 0.3     && < 0.6,
+    postgresql-simple          >= 0.3     && < 0.7,
     resource-pool              >= 0.2     && < 0.3,
     snap                       >= 1.0     && < 1.2,
     text                       >= 0.11    && < 1.3,
